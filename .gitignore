@@ -1,0 +1,5 @@
+__pycache__/*
+pystore/__pycache__/*
+dist
+PyStore.egg-info
+*.pyc
