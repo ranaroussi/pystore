@@ -30,7 +30,7 @@ setup(
     long_description=long_description,
     url='https://github.com/ranaroussi/pystore',
     author='Ran Aroussi',
-    author_email='ran@aroussi.com',g
+    author_email='ran@aroussi.com',
     license='LGPL',
     classifiers=[
         'License :: OSI Approved :: GNU Lesser General Public License v2.1 (LGPLv2.1)',
