@@ -119,12 +119,17 @@ class Collection(object):
         self.items = self.list_items()
 
     def append(self, item, data, npartitions=None, chunksize=1e6, **kwargs):
+        if not os.path.exists(self._item_path(item)):
+            raise ValueError(
+                """Item do not exists. Use `<collection>.write(...)`""")
+
         try:
-            old_data = self.item(item)
             data = _datetime_to_int64(data)
-            data = data[~data.index.isin(old_data.data.index.compute())]
-            # data = data.loc[set(data.index) -
-            #                 set(old_data.data.index.compute())]
+            old_index = dd.read_parquet(self._item_path(item),
+                                        columns='index',
+                                        engine='fastparquet'
+                                        ).index.compute()
+            data = data[~data.index.isin(old_index)]
         except:
             return
 
