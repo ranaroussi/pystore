@@ -126,7 +126,6 @@ Known Limitation
 ================
 
 PyStore currently only offers support for local filesystem.
-
 I plan on adding support for Amazon S3 (via `s3fs <http://s3fs.readthedocs.io/>`_),
 Google Cloud Storage (via `gcsfs <https://github.com/dask/gcsfs/>`_)
 and Hadoop Distributed File System (via `hdfs3 <http://hdfs3.readthedocs.io/>`_) in the future.
