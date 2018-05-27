@@ -6,11 +6,11 @@
 #
 # Copyright 2018 Ran Aroussi
 #
-# Licensed under the GNU Lesser General Public License, v3.0 (the "License");
+# Licensed under the GNU Lesser General Public License, v2.1 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     https://www.gnu.org/licenses/lgpl-3.0.en.html
+#     https://www.gnu.org/licenses/lgpl-2.1.en.html
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -20,7 +20,7 @@
 
 from .pystore import Store
 
-__version__ = "0.0.2"
+__version__ = "0.0.3"
 __author__ = "Ran Aroussi"
 
 __all__ = ['Store', 'Collection', 'Item']
