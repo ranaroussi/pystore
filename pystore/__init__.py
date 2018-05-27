@@ -20,7 +20,7 @@
 
 from .pystore import Store
 
-__version__ = "0.0.1"
+__version__ = "0.0.2"
 __author__ = "Ran Aroussi"
 
 __all__ = ['Store', 'Collection', 'Item']

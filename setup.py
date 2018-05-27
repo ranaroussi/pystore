@@ -20,12 +20,12 @@ from setuptools import setup, find_packages
 here = path.abspath(path.dirname(__file__))
 
 # Get the long description from the README file
-with codecs.open(path.join(here, 'README.md'), encoding='utf-8') as f:
+with codecs.open(path.join(here, 'README.rst'), encoding='utf-8') as f:
     long_description = f.read()
 
 setup(
     name='PyStore',
-    version="0.0.1",
+    version="0.0.2",
     description='Flat-file datastore for timeseries data',
     long_description=long_description,
     url='https://github.com/ranaroussi/pystore',
@@ -33,7 +33,7 @@ setup(
     author_email='ran@aroussi.com',
     license='LGPL',
     classifiers=[
-        'License :: OSI Approved :: GNU Lesser General Public License v2.1 (LGPLv2.1)',
+        'License :: OSI Approved :: GNU Lesser General Public License v2 (LGPLv2)',
         'Development Status :: 3 - Alpha',
 
         'Operating System :: OS Independent',
