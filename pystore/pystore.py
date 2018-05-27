@@ -149,18 +149,18 @@ class Store(object):
     def __repr__(self):
         return 'PyStore.datastore <%s>' % self.datastore
 
-    def __init__(self, datastore, path='~/.Pystore'):
+    def __init__(self, datastore, path='~/.pystore'):
         # if path ot exist - create it
-        path = path.rstrip('/').rstrip('\\').rstrip(' ')
+        self.path = path.rstrip('/').rstrip('\\').rstrip(' ')
 
         if "://" in path and "file://" not in path:
             raise ValueError(
                 "PyStore currently only works with local file system")
 
-        if not os.path.exists(path):
-            os.makedirs(path)
+        if not os.path.exists(self.path):
+            os.makedirs(self.path)
 
-        self.datastore = path + '/' + datastore + '.ts'  # <-- this is just a diretory
+        self.datastore = self.path + '/' + datastore  # <-- this is just a diretory
         if not os.path.exists(self.datastore):
             os.makedirs(self.datastore)
 
