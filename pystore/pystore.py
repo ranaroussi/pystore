@@ -45,14 +45,15 @@ class Item(object):
     def __repr__(self):
         return 'PyStore.item <%s/%s>' % (self.collection, self.item)
 
-    def __init__(self, item, datastore, collection):
+    def __init__(self, item, datastore, collection, filters=None, columns=None):
         self.datastore = datastore
         self.collection = collection
         self.item = item
         self._path = datastore + '/' + collection + '/' + item
 
         self.metadata = self._read_metadata()
-        self.data = dd.read_parquet(self._path, engine='fastparquet')
+        self.data = dd.read_parquet(
+            self._path, engine='fastparquet', filters=filters, columns=columns)
 
     def to_pandas(self, parse_dates=True):
         df = self.data.compute()
@@ -91,8 +92,18 @@ class Collection(object):
     def list_items(self):
         return _subdirs(self.datastore + '/' + self.collection)
 
-    def item(self, item):
+    def item(self, item, filters=None, columns=None):
         return Item(item, self.datastore, self.collection)
+
+    def index(self, item, last=False):
+        data = dd.read_parquet(self._item_path(item),
+                               columns='index',
+                               engine='fastparquet')
+        if not last:
+            return data.index.compute()
+
+        return float(str(data.index).split(
+                     '\nName')[0].split('\n')[-1].split(' ')[0])
 
     def delete(self, item):
         rmtree(self._item_path(item))
@@ -103,7 +114,7 @@ class Collection(object):
 
         if os.path.exists(self._item_path(item)) and not overwrite:
             raise ValueError("""
-                item already exists. To overwrite, use `overwrite=True`.
+                Item already exists. To overwrite, use `overwrite=True`.
                 Otherwise, use `<collection>.append()`""")
 
         data = dd.from_pandas(_datetime_to_int64(data),
