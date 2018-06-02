@@ -140,12 +140,24 @@ PyStore currently works with:
 * Numpy
 * Dask
 * Fastparquet
+* `Snappy <http://google.github.io/snappy/>`_ (Google's compression/decompression library)
 
 Tested to work on:
 
 * Linux
 * Unix
 * macOS
+
+
+Snappy Compression
+==================
+
+PyStore uses `Snappy <http://google.github.io/snappy/>`_,
+an extremely fast and efficient compression/decompression library from Google.
+You can install Snappy on \*nix-like systems using your system's
+package manager. For example, on Ubuntu, use
+``sudo apt-get install libsnappy-dev``, on macOS, use
+``brew install snappy``, etc.
 
 
 Acknowledgements
