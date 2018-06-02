@@ -7,10 +7,17 @@ python:
   - "3.5"
   - "3.6"
 
+before_install:
+  # - sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test
+  # - sudo apt-get update -qq
+  - test -n $CC  && unset CC
+  - test -n $CXX && unset CXX
+
 install:
-  - sudo apt-get install -qq gcc-4.8 g++-4.8 libstdc++-4.8-dev
-  - sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-4.8 20
-  - sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-4.8 20
+  - make get-deps
+  # - sudo apt-get install -qq gcc-4.8 g++-4.8 libstdc++-4.8-dev
+  # - sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-4.8 20
+  # - sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-4.8 20
   - pip install Cython
   - pip install -r requirements.txt
   - pip install .
