@@ -1,6 +1,13 @@
 Change Log
 ===========
 
+0.0.5
+-----
+
+- Not converting datetimte to epoch by defaults (use ``epochdate=True`` to enable)
+- Using "snappy" compression by default
+- Metadata's "_updated" is now a ``YYYY-MM-DD HH:MM:SS.MS`` string
+
 0.0.4
 -----
 
