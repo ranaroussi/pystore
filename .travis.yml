@@ -8,6 +8,9 @@ python:
   - "3.6"
 
 install:
+  - sudo apt-get install -qq gcc-4.8 g++-4.8 libstdc++-4.8-dev
+  - sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-4.8 20
+  - sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-4.8 20
   - pip install Cython
   - pip install -r requirements.txt
   - pip install .
