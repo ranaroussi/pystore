@@ -20,7 +20,7 @@
 
 import os
 import json
-import time
+from datetime import datetime
 from shutil import rmtree
 import dask.dataframe as dd
 import pandas as pd
@@ -155,7 +155,9 @@ class Collection(object):
                       engine='fastparquet', **kwargs)
 
     def write_metadata(self, item, metadata={}):
-        metadata['_updated'] = time.time()
+        now = datetime.now()
+        # metadata['_updated'] = now.timestamp()
+        metadata['_updated'] = now.strftime('%Y-%m-%d %H:%I:%S.%f')
         with open(self.datastore + '/' + self.collection + '/' + item +
                   '/metadata.json', 'w') as f:
             json.dump(metadata, f, ensure_ascii=False)
