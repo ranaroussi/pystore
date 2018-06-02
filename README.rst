@@ -59,6 +59,16 @@ Or upgrade using:
     $ pip install PyStore --upgrade --no-cache-dir
 
 
+**NOTE:**
+
+PyStore uses `Snappy <http://google.github.io/snappy/>`_,
+a fast and efficient compression/decompression library from Google.
+You can install Snappy on \*nix-like systems using your system's
+package manager (on Ubuntu, use
+``sudo apt-get install libsnappy-dev``, on macOS, use
+``brew install snappy``, etc.).
+
+
 Using PyStore
 -------------
 
@@ -140,18 +150,6 @@ Tested to work on:
 * Unix
 * macOS
 
-
-Snappy Compression
-==================
-
-PyStore uses `Snappy <http://google.github.io/snappy/>`_,
-an extremely fast and efficient compression/decompression library from Google.
-You can install Snappy on \*nix-like systems using your system's
-package manager. For example, on Ubuntu, use
-``sudo apt-get install libsnappy-dev``, on macOS, use
-``brew install snappy``, etc.
-
-
 Known Limitation
 ================
 
@@ -159,7 +157,6 @@ PyStore currently only offers support for local filesystem.
 I plan on adding support for Amazon S3 (via `s3fs <http://s3fs.readthedocs.io/>`_),
 Google Cloud Storage (via `gcsfs <https://github.com/dask/gcsfs/>`_)
 and Hadoop Distributed File System (via `hdfs3 <http://hdfs3.readthedocs.io/>`_) in the future.
-
 
 Acknowledgements
 ================
