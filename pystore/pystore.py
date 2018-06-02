@@ -58,7 +58,7 @@ class Item(object):
     def to_pandas(self, parse_dates=True):
         df = self.data.compute()
 
-        if parse_dates:
+        if parse_dates and "datetime" not in str(df.index.dtype):
             if str(df.index.dtype) == 'float64':
                 df.index = pd.to_datetime(df.index, unit='s')
             else:
@@ -93,7 +93,7 @@ class Collection(object):
         return _subdirs(self.datastore + '/' + self.collection)
 
     def item(self, item, filters=None, columns=None):
-        return Item(item, self.datastore, self.collection)
+        return Item(item, self.datastore, self.collection, filters, columns)
 
     def index(self, item, last=False):
         data = dd.read_parquet(self._item_path(item),
@@ -110,18 +110,22 @@ class Collection(object):
         self.items = self.list_items()
 
     def write(self, item, data, metadata={},
-              npartitions=None, chunksize=1e6, overwrite=False, **kwargs):
+              npartitions=None, chunksize=1e6, overwrite=False,
+              epochdate=False, compression="snappy", **kwargs):
 
         if os.path.exists(self._item_path(item)) and not overwrite:
             raise ValueError("""
                 Item already exists. To overwrite, use `overwrite=True`.
                 Otherwise, use `<collection>.append()`""")
 
-        data = dd.from_pandas(_datetime_to_int64(data),
+        if epochdate:
+            data = _datetime_to_int64(data)
+        data = dd.from_pandas(data,
                               npartitions=npartitions,
                               chunksize=int(chunksize))
 
         dd.to_parquet(data, self._item_path(item),
+                      compression=compression,
                       engine='fastparquet', **kwargs)
 
         self.write_metadata(item, metadata)
@@ -129,13 +133,15 @@ class Collection(object):
         # update items
         self.items = self.list_items()
 
-    def append(self, item, data, npartitions=None, chunksize=1e6, **kwargs):
+    def append(self, item, data, npartitions=None, chunksize=1e6,
+               epochdate=False, compression="snappy", **kwargs):
         if not os.path.exists(self._item_path(item)):
             raise ValueError(
                 """Item do not exists. Use `<collection>.write(...)`""")
 
         try:
-            data = _datetime_to_int64(data)
+            if epochdate:
+                data = _datetime_to_int64(data)
             old_index = dd.read_parquet(self._item_path(item),
                                         columns='index',
                                         engine='fastparquet'
@@ -152,6 +158,7 @@ class Collection(object):
                               chunksize=int(chunksize))
 
         dd.to_parquet(data, self._item_path(item), append=True,
+                      compression=compression,
                       engine='fastparquet', **kwargs)
 
     def write_metadata(self, item, metadata={}):
