@@ -20,7 +20,7 @@
 
 from .pystore import store, list_stores, set_path, PATH
 
-__version__ = "0.0.5"
+__version__ = "0.0.6"
 __author__ = "Ran Aroussi"
 
 __all__ = ['store', 'list_stores', 'set_path', 'PATH']

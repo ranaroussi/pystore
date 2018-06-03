@@ -25,7 +25,7 @@ with codecs.open(path.join(here, 'README.rst'), encoding='utf-8') as f:
 
 setup(
     name='PyStore',
-    version="0.0.5",
+    version="0.0.6",
     description='Flat-file datastore for timeseries data',
     long_description=long_description,
     url='https://github.com/ranaroussi/pystore',

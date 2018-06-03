@@ -1,6 +1,16 @@
 Change Log
 ===========
 
+0.0.6
+-----
+
+- Exposing more mothods
+- Path setting moved to ``pystore.set_path()``
+- ``Store.collection()`` auto-creates collection
+- Updated readme to reflect changes
+- Minor code refactoring
+
+
 0.0.5
 -----
 
