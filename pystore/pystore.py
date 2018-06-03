@@ -107,7 +107,7 @@ class Collection(object):
         return float(str(data.index).split(
                      '\nName')[0].split('\n')[-1].split(' ')[0])
 
-    def delete(self, item):
+    def delete_item(self, item):
         rmtree(self._item_path(item))
         self.items = self.list_items()
 
@@ -172,7 +172,7 @@ class Collection(object):
             json.dump(metadata, f, ensure_ascii=False)
 
 
-class Store(object):
+class store(object):
     def __repr__(self):
         return 'PyStore.datastore <%s>' % self.datastore
 
