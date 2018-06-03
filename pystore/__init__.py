@@ -18,9 +18,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .pystore import Store
+from .pystore import store, list_stores, set_path, PATH
 
 __version__ = "0.0.5"
 __author__ = "Ran Aroussi"
 
-__all__ = ['Store', 'Collection', 'Item']
+__all__ = ['store', 'list_stores', 'set_path', 'PATH']
