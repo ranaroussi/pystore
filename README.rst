@@ -112,6 +112,36 @@ Using PyStore
     df = item.to_pandas()
 
 
+    # --- Query functionality ---
+
+    # Query avaialable symbols based on metadata
+    collection.list_items(some_key='some_value', other_key='other_value')
+
+
+    # --- Snapshot functionality ---
+
+    # Snapshot a collection
+    # (Point-in-time named reference for all current symbols in a collection)
+    collection.snapshot('snapshot_name')
+    collection.list_snapshots()
+
+    # Get a version of a symbol given a snapshot name
+    collection.read('AAPL', snapshot='snapshot_name')
+
+    # Delete a collection snapshot
+    collection.delete_snapshot('snapshot_name')
+
+
+    # ...
+
+
+    # Delete the item from the current version
+    collection.delete_item('AAPL')
+
+    # Delete the collection
+    store.delete_collection('NASDAQ')
+
+
 Concepts
 ========
 
