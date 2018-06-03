@@ -191,7 +191,7 @@ class Store(object):
 
         self.collections = self.list_collections()
 
-    def create_collection(self, collection, overwrite=False):
+    def _create_collection(self, collection, overwrite=False):
         # create collection (subdir)
         if os.path.exists(self.datastore + '/' + collection):
             if overwrite:
@@ -205,6 +205,9 @@ class Store(object):
         # update collections
         self.collections = self.list_collections()
 
+        # return the collection
+        return Collection(collection, self.datastore)
+
     def delete_collection(self, collection):
         # delete collection (subdir)
         rmtree(self.datastore + '/' + collection)
@@ -216,6 +219,10 @@ class Store(object):
         # lists collections (subdirs)
         return _subdirs(self.datastore)
 
-    def collection(self, collection):
-        if collection in self.collections:
+    def collection(self, collection, overwrite=False):
+        if collection in self.collections and not overwrite:
+            return Collection(collection, self.datastore)
+        else:
+            # create it
+            self._create_collection(collection, overwrite)
             return Collection(collection, self.datastore)
