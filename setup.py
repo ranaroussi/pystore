@@ -6,12 +6,17 @@
 #
 # Copyright 2018 Ran Aroussi
 #
-
-"""
-PyStore is a Pythonic, flat-file datastore for timeseries data,
-that provide an easy to use datastore for Python developers that
-can easily query millions of rows per second per client.
-"""
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 import codecs
 from os import path
@@ -33,7 +38,7 @@ setup(
     author_email='ran@aroussi.com',
     license='LGPL',
     classifiers=[
-        'License :: OSI Approved :: GNU Lesser General Public License v2 (LGPLv2)',
+        'License :: OSI Approved :: Apache Software License',
         'Development Status :: 3 - Alpha',
 
         'Operating System :: OS Independent',
@@ -49,7 +54,8 @@ setup(
     platforms=['linux', 'unix', 'macOS'],
     keywords='dask, datastore, flatfile, pystore',
     packages=find_packages(exclude=['contrib', 'docs', 'tests', 'examples']),
-    install_requires=['pandas', 'numpy', 'fastparquet', 'python-snappy', 'dask', 'toolz', 'partd', 'cloudpickle', 'distributed'],
+    install_requires=['pandas', 'numpy', 'fastparquet', 'python-snappy',
+                      'dask', 'toolz', 'partd', 'cloudpickle', 'distributed'],
     entry_points={
         'console_scripts': [
             'sample=sample:main',
