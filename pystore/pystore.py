@@ -21,6 +21,7 @@
 import os
 import json
 from datetime import datetime
+import time
 import shutil
 import dask.dataframe as dd
 import pandas as pd
@@ -40,7 +41,8 @@ def _datetime_to_int64(df):
 
 def _subdirs(d):
     return [os.path.join(d, o).replace(d + '/', '') for o in os.listdir(d)
-            if os.path.isdir(os.path.join(d, o))]
+            if (os.path.isdir(os.path.join(d, o)) and o != '_snapshots')]
+
 
 def _read_metadata(path):
     with open(path + '/metadata.json') as f:
@@ -51,11 +53,22 @@ class Item(object):
     def __repr__(self):
         return 'PyStore.item <%s/%s>' % (self.collection, self.item)
 
-    def __init__(self, item, datastore, collection, filters=None, columns=None):
+    def __init__(self, item, datastore, collection,
+                 snapshot=None, filters=None, columns=None):
         self.datastore = datastore
         self.collection = collection
+        self.snapshot = snapshot
         self.item = item
+
         self._path = datastore + '/' + collection + '/' + item
+        if snapshot:
+            snap_path = datastore + '/' + collection + '/_snapshots/' + snapshot
+            self._path = snap_path + '/' + item
+            if not os.path.exists(snap_path):
+                raise ValueError("Snapshot `%s` doesn't exist" % snapshot)
+            else:
+                if not os.path.exists(self._path):
+                   raise ValueError("Item `%s` doesn't exist in this snapshot" % item)
 
         self.metadata = _read_metadata(self._path)
         self.data = dd.read_parquet(
@@ -88,6 +101,7 @@ class Collection(object):
         self.datastore = datastore
         self.collection = collection
         self.items = self.list_items()
+        self.snapshots = self.list_snapshots()
 
     def _item_path(self, item):
         return self.datastore + '/' + self.collection + '/' + item
@@ -194,6 +208,42 @@ class Collection(object):
                   '/metadata.json', 'w') as f:
             json.dump(metadata, f, ensure_ascii=False)
 
+    def create_snapshot(self, snapshot=None):
+        if snapshot:
+            snapshot = ''.join(e for e in snapshot if e.isalnum())
+        else:
+            snapshot = str(int(time.time() * 1000000))
+
+        src = self.datastore + '/' + self.collection
+        dst = src + '/_snapshots/' + snapshot
+
+        shutil.copytree(src, dst,
+                        ignore=shutil.ignore_patterns("_snapshots"))
+
+        self.snapshots = self.list_snapshots()
+        return True
+
+    def list_snapshots(self):
+        snapshots = _subdirs(self.datastore + '/' +
+                             self.collection + '/_snapshots/')
+        return [s.split('/')[-1] for s in snapshots]
+
+    def delete_snapshot(self, snapshot):
+        if snapshot not in self.snapshots:
+            # raise ValueError("Snapshot `%s` doesn't exist" % snapshot)
+            return True
+
+        shutil.rmtree(self.datastore + '/' + self.collection +
+                      '/_snapshots/' + snapshot)
+        self.snapshots = self.list_snapshots()
+        return True
+
+    def delete_snapshots(self):
+        shutil.rmtree(self.datastore + '/' + self.collection + '/_snapshots')
+        os.makedirs(self.datastore + '/' + self.collection + '/_snapshots')
+        self.snapshots = self.list_snapshots()
+        return True
+
 
 class store(object):
     def __repr__(self):
@@ -221,6 +271,7 @@ class store(object):
                     "Collection already exists. To overwrite, use `overwrite=True`")
 
         os.makedirs(self.datastore + '/' + collection)
+        os.makedirs(self.datastore + '/' + collection + '/_snapshots')
 
         # update collections
         self.collections = self.list_collections()
