@@ -1,10 +1,16 @@
 Change Log
 ===========
 
-0.0.6
+0.0.7
 -----
 
-- Exposing more mothods
+- Added support for snapshots
+- ``collection.list_items()`` supports querying based on metadata
+- Sone code refactoring
+
+-----
+
+- Exposing more methods
 - Path setting moved to ``pystore.set_path()``
 - ``Store.collection()`` auto-creates collection
 - Updated readme to reflect changes
