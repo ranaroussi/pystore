@@ -42,6 +42,10 @@ def _subdirs(d):
     return [os.path.join(d, o).replace(d + '/', '') for o in os.listdir(d)
             if os.path.isdir(os.path.join(d, o))]
 
+def _read_metadata(path):
+    with open(path + '/metadata.json') as f:
+        return json.load(f)
+
 
 class Item(object):
     def __repr__(self):
@@ -53,7 +57,7 @@ class Item(object):
         self.item = item
         self._path = datastore + '/' + collection + '/' + item
 
-        self.metadata = self._read_metadata()
+        self.metadata = _read_metadata(self._path)
         self.data = dd.read_parquet(
             self._path, engine='fastparquet', filters=filters, columns=columns)
 
@@ -74,9 +78,6 @@ class Item(object):
     def tail(self, n=5):
         return self.data.tail(n)
 
-    def _read_metadata(self):
-        with open(self._path + '/metadata.json') as f:
-            return json.load(f)
 
 
 class Collection(object):
