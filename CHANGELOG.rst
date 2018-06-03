@@ -1,12 +1,19 @@
 Change Log
 ===========
 
+0.0.8
+-----
+
+- Changed license to Apache License, Version 2.0
+- Moduled seperated into files
+- Code refactoring
+
 0.0.7
 -----
 
 - Added support for snapshots
 - ``collection.list_items()`` supports querying based on metadata
-- Sone code refactoring
+- Some code refactoring
 
 -----
 
