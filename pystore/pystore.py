@@ -21,7 +21,7 @@
 import os
 import json
 from datetime import datetime
-from shutil import rmtree
+import shutil
 import dask.dataframe as dd
 import pandas as pd
 import numpy as np
@@ -108,7 +108,7 @@ class Collection(object):
                      '\nName')[0].split('\n')[-1].split(' ')[0])
 
     def delete_item(self, item):
-        rmtree(self._item_path(item))
+        shutil.rmtree(self._item_path(item))
         self.items = self.list_items()
 
     def write(self, item, data, metadata={},
@@ -208,7 +208,7 @@ class store(object):
 
     def delete_collection(self, collection):
         # delete collection (subdir)
-        rmtree(self.datastore + '/' + collection)
+        shutil.rmtree(self.datastore + '/' + collection)
 
         # update collections
         self.collections = self.list_collections()
