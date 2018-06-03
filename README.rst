@@ -126,7 +126,7 @@ Using PyStore
     collection.list_snapshots()
 
     # Get a version of a symbol given a snapshot name
-    collection.read('AAPL', snapshot='snapshot_name')
+    collection.item('AAPL', snapshot='snapshot_name')
 
     # Delete a collection snapshot
     collection.delete_snapshot('snapshot_name')
