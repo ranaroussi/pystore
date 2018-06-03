@@ -1,5 +1,5 @@
-PyStore - Datastore for timeseries data
-=======================================
+PyStore - Fast data store for Pandas timeseries data
+====================================================
 
 .. image:: https://img.shields.io/pypi/pyversions/pystore.svg?maxAge=60
     :target: https://pypi.python.org/pypi/pystore
@@ -29,15 +29,17 @@ PyStore - Datastore for timeseries data
 
 
 `PyStore <https://github.com/ranaroussi/pystore>`_ is a simple (yet powerful)
-datastore for timeseries data. It's built on top of
-`Pandas <http://pandas.pydata.org>`_, `Numpy <http://numpy.pydata.org>`_,
+datastore for Pandas dataframes, and while it can store any Pandas object,
+**it was designed with storing timeseries data in mind**.
+
+It's built on top of `Pandas <http://pandas.pydata.org>`_, `Numpy <http://numpy.pydata.org>`_,
 `Dask <http://dask.pydata.org>`_, and `Parquet <http://parquet.apache.org>`_
 (via `Fastparquet <https://github.com/dask/fastparquet>`_),
 to provide an easy to use datastore for Python developers that can easily
 query millions of rows per second per client.
 
 PyStore is hugely inspired by `Man AHL <http://www.ahl.com/>`_'s
-`Arctic <https://github.com/manahl/arctic>`_. I highly reommend you check it out.
+`Arctic <https://github.com/manahl/arctic>`_, and I highly reommend you check it out.
 
 
 Quickstart
@@ -125,20 +127,15 @@ A good practice it to create collections that may look something like this:
 Requirements
 ============
 
-PyStore currently works with:
-
-* Python 3.5 or higher
+* Python >= 3.5
 * Pandas
 * Numpy
 * Dask
 * Fastparquet
 * `Snappy <http://google.github.io/snappy/>`_ (Google's compression/decompression library)
 
-Tested to work on:
+PyStore was tested to work on \*NIX-like systems, including macOS.
 
-* Linux
-* Unix
-* macOS
 
 Dependencies:
 -------------
@@ -178,7 +175,6 @@ PyStore is hugely inspired by `Man AHL <http://www.ahl.com/>`_'s
 MongoDB for storage and allow for versioning and other features.
 I highly reommend you check it out.
 
-Contributions welcome!
 
 
 License
@@ -188,6 +184,9 @@ PyStore is licensed under the **GNU Lesser General Public License v2.1**. A copy
 
 -----
 
-I'm very interested in your experience with pystore. Please drop me an note with any feedback you have.
+I'm very interested in your experience with PyStore.
+Please drop me an note with any feedback you have.
+
+Contributions welcome!
 
 \- **Ran Aroussi**
