@@ -152,7 +152,8 @@ class Collection(object):
         except:
             return
 
-        if len(data.index) == 0:
+        if data.empty:
+            # if len(data.index) == 0:
             return
 
         data = dd.from_pandas(data,
