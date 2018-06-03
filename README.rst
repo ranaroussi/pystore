@@ -72,18 +72,19 @@ Using PyStore
     import pystore
     import quandl
 
-    # Connect to local datastore
-    store = pystore.Store('mydatastore')
-    # default path is `~/.pystore`, otherwise:
-    # store = pystore.Store('mydatastore', path='/usr/share/pystore')
+    # Set storage path (optional, default is `~/.pystore`)
+    pystore.set_path('/usr/share/pystore')
+
+    # List stores
+    pystore.list_stores()
+
+    # Connect to datastore (create it if not exist)
+    store = pystore.store('mydatastore')
 
     # List existing collections
     store.list_collections()
 
-    # Create a collection
-    store.create_collection('NASDAQ')
-
-    # Access the collection
+    # Access a collection (create it if not exist)
     collection = store.collection('NASDAQ')
 
     # List items in collection
