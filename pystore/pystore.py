@@ -26,6 +26,8 @@ import dask.dataframe as dd
 import pandas as pd
 import numpy as np
 
+PATH = '~/.pystore'
+
 
 def _datetime_to_int64(df):
     """ convert datetime index to epoch int
@@ -174,18 +176,13 @@ class Store(object):
     def __repr__(self):
         return 'PyStore.datastore <%s>' % self.datastore
 
-    def __init__(self, datastore, path='~/.pystore'):
-        # if path ot exist - create it
-        self.path = path.rstrip('/').rstrip('\\').rstrip(' ')
+    def __init__(self, datastore):
+        global PATH
 
-        if "://" in path and "file://" not in path:
-            raise ValueError(
-                "PyStore currently only works with local file system")
+        if not os.path.exists(PATH):
+            os.makedirs(PATH)
 
-        if not os.path.exists(self.path):
-            os.makedirs(self.path)
-
-        self.datastore = self.path + '/' + datastore  # <-- this is just a diretory
+        self.datastore = PATH + '/' + datastore  # <-- this is just a diretory
         if not os.path.exists(self.datastore):
             os.makedirs(self.datastore)
 
@@ -226,3 +223,31 @@ class Store(object):
             # create it
             self._create_collection(collection, overwrite)
             return Collection(collection, self.datastore)
+
+
+def set_path(path):
+    global PATH
+
+    if path is None:
+        path = '~/.pystore'
+
+    path = path.rstrip('/').rstrip('\\').rstrip(' ')
+    if "://" in path and "file://" not in path:
+        raise ValueError(
+            "PyStore currently only works with local file system")
+
+    # if path ot exist - create it
+    PATH = path
+    if not os.path.exists(PATH):
+        os.makedirs(PATH)
+
+    return PATH
+
+
+def list_stores():
+    global PATH
+
+    if not os.path.exists(PATH):
+        os.makedirs(PATH)
+
+    return _subdirs(PATH)
