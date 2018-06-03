@@ -122,7 +122,9 @@ Using PyStore
 
     # Snapshot a collection
     # (Point-in-time named reference for all current symbols in a collection)
-    collection.snapshot('snapshot_name')
+    collection.create_snapshot('snapshot_name')
+
+    # List available snapshots
     collection.list_snapshots()
 
     # Get a version of a symbol given a snapshot name
