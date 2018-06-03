@@ -92,11 +92,32 @@ class Collection(object):
     def _item_path(self, item):
         return self.datastore + '/' + self.collection + '/' + item
 
-    def list_items(self):
-        return _subdirs(self.datastore + '/' + self.collection)
+    def list_items(self, **kwargs):
+        dirs = _subdirs(self.datastore + '/' + self.collection)
+        if not kwargs:
+            return dirs
 
-    def item(self, item, filters=None, columns=None):
-        return Item(item, self.datastore, self.collection, filters, columns)
+
+        matched = []
+        for d in dirs:
+            meta = _read_metadata(self.datastore + '/' + self.collection + '/' + d)
+            del meta['_updated']
+
+            m = 0
+            keys = list(meta.keys())
+            for k, v in kwargs.items():
+                if k in keys and meta[k] == v:
+                    m += 1
+
+            if m == len(kwargs):
+                matched.append(d)
+
+        return matched
+
+
+    def item(self, item, snapshot=None, filters=None, columns=None):
+        return Item(item, self.datastore, self.collection,
+                    snapshot, filters, columns)
 
     def index(self, item, last=False):
         data = dd.read_parquet(self._item_path(item),
