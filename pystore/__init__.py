@@ -6,11 +6,11 @@
 #
 # Copyright 2018 Ran Aroussi
 #
-# Licensed under the GNU Lesser General Public License, v2.1 (the "License");
+# Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     https://www.gnu.org/licenses/lgpl-2.1.en.html
+#     http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -18,7 +18,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .pystore import store, list_stores, set_path, PATH
+from .store import store
+from .utils import (
+    list_stores, set_path, PATH
+)
 
 __version__ = "0.0.7"
 __author__ = "Ran Aroussi"

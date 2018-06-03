@@ -6,11 +6,11 @@
 #
 # Copyright 2018 Ran Aroussi
 #
-# Licensed under the GNU Lesser General Public License, v2.1 (the "License");
+# Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#     https://www.gnu.org/licenses/lgpl-2.1.en.html
+#     http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -24,73 +24,9 @@ from datetime import datetime
 import time
 import shutil
 import dask.dataframe as dd
-import pandas as pd
-import numpy as np
 
-PATH = '~/.pystore'
-
-
-def _datetime_to_int64(df):
-    """ convert datetime index to epoch int
-    allows for cross language/platform portability
-    """
-    if isinstance(df.index, pd.DatetimeIndex):
-        df.index = df.index.astype(np.int64) / 1e9
-    return df
-
-
-def _subdirs(d):
-    return [os.path.join(d, o).replace(d + '/', '') for o in os.listdir(d)
-            if (os.path.isdir(os.path.join(d, o)) and o != '_snapshots')]
-
-
-def _read_metadata(path):
-    with open(path + '/metadata.json') as f:
-        return json.load(f)
-
-
-class Item(object):
-    def __repr__(self):
-        return 'PyStore.item <%s/%s>' % (self.collection, self.item)
-
-    def __init__(self, item, datastore, collection,
-                 snapshot=None, filters=None, columns=None):
-        self.datastore = datastore
-        self.collection = collection
-        self.snapshot = snapshot
-        self.item = item
-
-        self._path = datastore + '/' + collection + '/' + item
-        if snapshot:
-            snap_path = datastore + '/' + collection + '/_snapshots/' + snapshot
-            self._path = snap_path + '/' + item
-            if not os.path.exists(snap_path):
-                raise ValueError("Snapshot `%s` doesn't exist" % snapshot)
-            else:
-                if not os.path.exists(self._path):
-                   raise ValueError("Item `%s` doesn't exist in this snapshot" % item)
-
-        self.metadata = _read_metadata(self._path)
-        self.data = dd.read_parquet(
-            self._path, engine='fastparquet', filters=filters, columns=columns)
-
-    def to_pandas(self, parse_dates=True):
-        df = self.data.compute()
-
-        if parse_dates and "datetime" not in str(df.index.dtype):
-            if str(df.index.dtype) == 'float64':
-                df.index = pd.to_datetime(df.index, unit='s')
-            else:
-                df.index = pd.to_datetime(df.index)
-
-        return df
-
-    def head(self, n=5):
-        return self.data.head(n)
-
-    def tail(self, n=5):
-        return self.data.tail(n)
-
+from . import utils
+from .item import Item
 
 
 class Collection(object):
@@ -107,14 +43,14 @@ class Collection(object):
         return self.datastore + '/' + self.collection + '/' + item
 
     def list_items(self, **kwargs):
-        dirs = _subdirs(self.datastore + '/' + self.collection)
+        dirs = utils.subdirs(self.datastore + '/' + self.collection)
         if not kwargs:
             return dirs
 
-
         matched = []
         for d in dirs:
-            meta = _read_metadata(self.datastore + '/' + self.collection + '/' + d)
+            meta = utils.read_metadata(self.datastore + '/' +
+                                       self.collection + '/' + d)
             del meta['_updated']
 
             m = 0
@@ -127,7 +63,6 @@ class Collection(object):
                 matched.append(d)
 
         return matched
-
 
     def item(self, item, snapshot=None, filters=None, columns=None):
         return Item(item, self.datastore, self.collection,
@@ -157,7 +92,7 @@ class Collection(object):
                 Otherwise, use `<collection>.append()`""")
 
         if epochdate:
-            data = _datetime_to_int64(data)
+            data = utils.datetime_to_int64(data)
         data = dd.from_pandas(data,
                               npartitions=npartitions,
                               chunksize=int(chunksize))
@@ -179,7 +114,7 @@ class Collection(object):
 
         try:
             if epochdate:
-                data = _datetime_to_int64(data)
+                data = utils.datetime_to_int64(data)
             old_index = dd.read_parquet(self._item_path(item),
                                         columns='index',
                                         engine='fastparquet'
@@ -224,8 +159,8 @@ class Collection(object):
         return True
 
     def list_snapshots(self):
-        snapshots = _subdirs(self.datastore + '/' +
-                             self.collection + '/_snapshots/')
+        snapshots = utils.subdirs(self.datastore + '/' +
+                                  self.collection + '/_snapshots/')
         return [s.split('/')[-1] for s in snapshots]
 
     def delete_snapshot(self, snapshot):
@@ -243,85 +178,3 @@ class Collection(object):
         os.makedirs(self.datastore + '/' + self.collection + '/_snapshots')
         self.snapshots = self.list_snapshots()
         return True
-
-
-class store(object):
-    def __repr__(self):
-        return 'PyStore.datastore <%s>' % self.datastore
-
-    def __init__(self, datastore):
-        global PATH
-
-        if not os.path.exists(PATH):
-            os.makedirs(PATH)
-
-        self.datastore = PATH + '/' + datastore  # <-- this is just a diretory
-        if not os.path.exists(self.datastore):
-            os.makedirs(self.datastore)
-
-        self.collections = self.list_collections()
-
-    def _create_collection(self, collection, overwrite=False):
-        # create collection (subdir)
-        if os.path.exists(self.datastore + '/' + collection):
-            if overwrite:
-                self.delete_collection(collection)
-            else:
-                raise ValueError(
-                    "Collection already exists. To overwrite, use `overwrite=True`")
-
-        os.makedirs(self.datastore + '/' + collection)
-        os.makedirs(self.datastore + '/' + collection + '/_snapshots')
-
-        # update collections
-        self.collections = self.list_collections()
-
-        # return the collection
-        return Collection(collection, self.datastore)
-
-    def delete_collection(self, collection):
-        # delete collection (subdir)
-        shutil.rmtree(self.datastore + '/' + collection)
-
-        # update collections
-        self.collections = self.list_collections()
-
-    def list_collections(self):
-        # lists collections (subdirs)
-        return _subdirs(self.datastore)
-
-    def collection(self, collection, overwrite=False):
-        if collection in self.collections and not overwrite:
-            return Collection(collection, self.datastore)
-        else:
-            # create it
-            self._create_collection(collection, overwrite)
-            return Collection(collection, self.datastore)
-
-
-def set_path(path):
-    global PATH
-
-    if path is None:
-        path = '~/.pystore'
-
-    path = path.rstrip('/').rstrip('\\').rstrip(' ')
-    if "://" in path and "file://" not in path:
-        raise ValueError(
-            "PyStore currently only works with local file system")
-
-    # if path ot exist - create it
-    PATH = path
-    if not os.path.exists(PATH):
-        os.makedirs(PATH)
-
-    return PATH
-
-
-def list_stores():
-    global PATH
-
-    if not os.path.exists(PATH):
-        os.makedirs(PATH)
-
-    return _subdirs(PATH)

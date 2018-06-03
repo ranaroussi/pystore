@@ -213,7 +213,8 @@ I highly reommend you check it out.
 License
 =======
 
-PyStore is licensed under the **GNU Lesser General Public License v2.1**. A copy of which is included in LICENSE.txt.
+
+PyStore is licensed under the **Apache License, Version 2.0**. A copy of which is included in LICENSE.txt.
 
 -----
 
