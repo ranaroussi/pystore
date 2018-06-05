@@ -42,6 +42,11 @@ PyStore is hugely inspired by `Man AHL <http://www.ahl.com/>`_'s
 `Arctic <https://github.com/manahl/arctic>`_, and I highly reommend you check it out.
 
 
+Check out `this Blog post <https://medium.com/@aroussi/fast-data-store-for-pandas-time-series-data-using-pystore-89d9caeef4e2>`_
+for the reasoning and philosophy behind PyStore, as well as a detailed tutorial with code examples.
+
+
+
 Quickstart
 ==========
 
