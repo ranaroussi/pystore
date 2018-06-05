@@ -23,7 +23,7 @@ from .utils import (
     list_stores, set_path, PATH
 )
 
-__version__ = "0.0.8"
+__version__ = "0.0.9"
 __author__ = "Ran Aroussi"
 
 __all__ = ['store', 'list_stores', 'set_path', 'PATH']

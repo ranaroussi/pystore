@@ -1,6 +1,11 @@
 Change Log
 ===========
 
+0.0.9
+-----
+
+- Allowing _ and . in snapshot name
+
 0.0.8
 -----
 
