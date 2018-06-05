@@ -145,7 +145,7 @@ class Collection(object):
 
     def create_snapshot(self, snapshot=None):
         if snapshot:
-            snapshot = ''.join(e for e in snapshot if e.isalnum())
+            snapshot = ''.join(e for e in snapshot if e.isalnum() or e in ['.', '_'])
         else:
             snapshot = str(int(time.time() * 1000000))
 
