@@ -92,8 +92,12 @@ class Collection(object):
                 Item already exists. To overwrite, use `overwrite=True`.
                 Otherwise, use `<collection>.append()`""")
 
+        if isinstance(data, Item):
+            data = data.to_pandas()
+
         if epochdate:
             data = utils.datetime_to_int64(data)
+
         data = dd.from_pandas(data,
                               npartitions=npartitions,
                               chunksize=int(chunksize))
