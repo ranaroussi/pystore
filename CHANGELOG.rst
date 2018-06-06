@@ -1,6 +1,13 @@
 Change Log
 ===========
 
+0.0.10
+------
+
+- Added ``pystore.delete_store(NAME)`` and ``pystore.delete_stores()``
+- Added Jupyter notebook example to Github repo
+- Minor code refactoring
+
 0.0.9
 -----
 
