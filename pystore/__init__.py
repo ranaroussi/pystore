@@ -20,10 +20,12 @@
 
 from .store import store
 from .utils import (
-    list_stores, set_path, PATH
+    PATH, set_path,
+    list_stores, delete_store, delete_stores
 )
 
 __version__ = "0.0.9"
 __author__ = "Ran Aroussi"
 
-__all__ = ['store', 'list_stores', 'set_path', 'PATH']
+__all__ = ['store', 'PATH', 'set_path',
+           'list_stores', 'delete_store', 'delete_stores']
