@@ -32,10 +32,10 @@ class store(object):
 
     def __init__(self, datastore):
 
-        if not os.path.exists(utils.PATH):
-            os.makedirs(utils.PATH)
+        if not os.path.exists(utils.get_path()):
+            os.makedirs(utils.get_path())
 
-        self.datastore = utils.PATH + '/' + datastore  # <-- this is just a diretory
+        self.datastore = utils.get_path() + '/' + datastore  # <-- this is just a diretory
         if not os.path.exists(self.datastore):
             os.makedirs(self.datastore)
 

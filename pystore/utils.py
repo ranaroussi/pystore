@@ -24,7 +24,7 @@ import shutil
 import pandas as pd
 import numpy as np
 
-PATH = '~/.pystore'
+from . import config
 
 
 def datetime_to_int64(df):
@@ -46,39 +46,39 @@ def read_metadata(path):
         return json.load(f)
 
 
-def set_path(path):
-    global PATH
+def get_path():
+    return config.DEFAULT_PATH
 
+
+def set_path(path):
     if path is None:
-        path = '~/.pystore'
+        path = get_path()
 
     path = path.rstrip('/').rstrip('\\').rstrip(' ')
     if "://" in path and "file://" not in path:
         raise ValueError(
             "PyStore currently only works with local file system")
 
-    # if path ot exist - create it
-    PATH = path
-    if not os.path.exists(PATH):
-        os.makedirs(PATH)
+    config.DEFAULT_PATH = path
+    path = get_path()
 
-    return PATH
+    # if path ot exist - create it
+    if not os.path.exists(get_path()):
+        os.makedirs(get_path())
+
+    return get_path
 
 
 def list_stores():
-    global PATH
+    if not os.path.exists(get_path()):
+        os.makedirs(get_path())
 
-    if not os.path.exists(PATH):
-        os.makedirs(PATH)
-
-    return subdirs(PATH)
+    return subdirs(get_path())
 
 def delete_store(store):
-    global PATH
-    shutil.rmtree(PATH + '/' + store)
+    shutil.rmtree(get_path() + '/' + store)
     return True
 
 def delete_stores():
-    global PATH
-    shutil.rmtree(PATH)
+    shutil.rmtree(get_path())
     return True
