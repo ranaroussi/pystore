@@ -65,6 +65,7 @@ class store(object):
 
         # update collections
         self.collections = self.list_collections()
+        return True
 
     def list_collections(self):
         # lists collections (subdirs)

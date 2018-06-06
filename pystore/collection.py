@@ -81,6 +81,7 @@ class Collection(object):
     def delete_item(self, item):
         shutil.rmtree(self._item_path(item))
         self.items = self.list_items()
+        return True
 
     def write(self, item, data, metadata={},
               npartitions=None, chunksize=1e6, overwrite=False,
