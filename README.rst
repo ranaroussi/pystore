@@ -38,9 +38,11 @@ It's built on top of `Pandas <http://pandas.pydata.org>`_, `Numpy <http://numpy.
 to provide an easy to use datastore for Python developers that can easily
 query millions of rows per second per client.
 
+
 ==> Check out `this Blog post <https://medium.com/@aroussi/fast-data-store-for-pandas-time-series-data-using-pystore-89d9caeef4e2>`_
 for the reasoning and philosophy behind PyStore, as well as a detailed tutorial with code examples.
 
+==> Follow `this PyStore tutorial <https://github.com/ranaroussi/pystore/blob/master/examples/pystore-tutorial.ipynb>`_ in Jupyter notebook format.
 
 
 Quickstart
