@@ -30,8 +30,8 @@ with codecs.open(path.join(here, 'README.rst'), encoding='utf-8') as f:
 
 setup(
     name='PyStore',
-    version="0.0.9",
-    description='Flat-file datastore for timeseries data',
+    version="0.0.10",
+    description='Fast data store for Pandas timeseries data',
     long_description=long_description,
     url='https://github.com/ranaroussi/pystore',
     author='Ran Aroussi',
@@ -39,7 +39,7 @@ setup(
     license='LGPL',
     classifiers=[
         'License :: OSI Approved :: Apache Software License',
-        'Development Status :: 3 - Alpha',
+        'Development Status :: 4 - Beta',
 
         'Operating System :: OS Independent',
         'Intended Audience :: Developers',

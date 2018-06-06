@@ -24,7 +24,7 @@ from .utils import (
     list_stores, delete_store, delete_stores
 )
 
-__version__ = "0.0.9"
+__version__ = "0.0.10"
 __author__ = "Ran Aroussi"
 
 __all__ = ['store', 'PATH', 'set_path',
