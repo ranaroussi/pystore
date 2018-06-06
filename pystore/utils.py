@@ -20,6 +20,7 @@
 
 import os
 import json
+import shutil
 import pandas as pd
 import numpy as np
 
@@ -71,3 +72,13 @@ def list_stores():
         os.makedirs(PATH)
 
     return subdirs(PATH)
+
+def delete_store(store):
+    global PATH
+    shutil.rmtree(PATH + '/' + store)
+    return True
+
+def delete_stores():
+    global PATH
+    shutil.rmtree(PATH)
+    return True
