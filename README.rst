@@ -64,6 +64,11 @@ Or upgrade using:
     $ pip install PyStore --upgrade --no-cache-dir
 
 
+**INSTALLATION NOTE:**
+If you don't have Snappy installed (compression/decompression library), you'll need to
+you'll need to `install it first <https://github.com/ranaroussi/pystore#dependencies>`_.
+
+
 Using PyStore
 -------------
 
