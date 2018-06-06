@@ -4,7 +4,7 @@ Change Log
 0.0.10
 ------
 
-- Added ``pystore.delete_store(NAME)`` and ``pystore.delete_stores()``
+- Added ``pystore.delete_store(NAME)``, ``pystore.delete_stores()``, and ``pystore.get_path()``
 - Added Jupyter notebook example to Github repo
 - Minor code refactoring
 
