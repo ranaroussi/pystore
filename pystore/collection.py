@@ -98,6 +98,9 @@ class Collection(object):
         if epochdate:
             data = utils.datetime_to_int64(data)
 
+        if data.index.name == "":
+            data.index.name = "index"
+
         data = dd.from_pandas(data,
                               npartitions=npartitions,
                               chunksize=int(chunksize))
@@ -131,6 +134,9 @@ class Collection(object):
         if data.empty:
             # if len(data.index) == 0:
             return
+
+        if data.index.name == "":
+            data.index.name = "index"
 
         data = dd.from_pandas(data,
                               npartitions=npartitions,
