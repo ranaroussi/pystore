@@ -1,6 +1,11 @@
 Change Log
 ===========
 
+0.0.11
+------
+
+-  Adding an index name when one is not available
+
 0.0.10
 ------
 
