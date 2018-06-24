@@ -69,7 +69,7 @@ class store(object):
 
     def list_collections(self):
         # lists collections (subdirs)
-        return utils.subdirs(self.datastore)
+        return os.listdir(self.datastore)
 
     def collection(self, collection, overwrite=False):
         if collection in self.collections and not overwrite:
