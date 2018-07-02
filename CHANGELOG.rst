@@ -1,6 +1,12 @@
 Change Log
 ===========
 
+0.0.12
+------
+
+- Switched path parsing to ``pathlib.Path`` to help with cross-platform compatibility
+- Minor code refactoring
+
 0.0.11
 ------
 
