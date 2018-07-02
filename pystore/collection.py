@@ -146,14 +146,6 @@ class Collection(object):
                       compression=compression,
                       engine='fastparquet', **kwargs)
 
-    def write_metadata(self, item, metadata={}):
-        now = datetime.now()
-        # metadata['_updated'] = now.timestamp()
-        metadata['_updated'] = now.strftime('%Y-%m-%d %H:%I:%S.%f')
-        with open(self.datastore + '/' + self.collection + '/' + item +
-                  '/metadata.json', 'w') as f:
-            json.dump(metadata, f, ensure_ascii=False)
-
     def create_snapshot(self, snapshot=None):
         if snapshot:
             snapshot = ''.join(e for e in snapshot if e.isalnum() or e in ['.', '_'])
