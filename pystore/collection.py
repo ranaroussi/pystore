@@ -39,18 +39,21 @@ class Collection(object):
         self.items = self.list_items()
         self.snapshots = self.list_snapshots()
 
-    def _item_path(self, item):
-        return self.datastore + '/' + self.collection + '/' + item
+    def _item_path(self, item, as_string=False):
+        p = utils.make_path(self.datastore, self.collection, item)
+        if as_string:
+            return str(p)
+        return p
 
     def list_items(self, **kwargs):
-        dirs = utils.subdirs(self.datastore + '/' + self.collection)
+        dirs = utils.subdirs(utils.make_path(self.datastore, self.collection))
         if not kwargs:
             return dirs
 
         matched = []
         for d in dirs:
-            meta = utils.read_metadata(self.datastore + '/' +
-                                       self.collection + '/' + d)
+            meta = utils.read_metadata(utils.make_path(
+                self.datastore, self.collection, d))
             del meta['_updated']
 
             m = 0
@@ -69,7 +72,7 @@ class Collection(object):
                     snapshot, filters, columns)
 
     def index(self, item, last=False):
-        data = dd.read_parquet(self._item_path(item),
+        data = dd.read_parquet(self._item_path(item, as_string=True),
                                columns='index',
                                engine='fastparquet')
         if not last:
@@ -87,7 +90,7 @@ class Collection(object):
               npartitions=None, chunksize=1e6, overwrite=False,
               epochdate=False, compression="snappy", **kwargs):
 
-        if os.path.exists(self._item_path(item)) and not overwrite:
+        if utils.path_exists(self._item_path(item)) and not overwrite:
             raise ValueError("""
                 Item already exists. To overwrite, use `overwrite=True`.
                 Otherwise, use `<collection>.append()`""")
@@ -105,25 +108,27 @@ class Collection(object):
                               npartitions=npartitions,
                               chunksize=int(chunksize))
 
-        dd.to_parquet(data, self._item_path(item),
+        dd.to_parquet(data.fillna(''),
+                      self._item_path(item, as_string=True),
                       compression=compression,
                       engine='fastparquet', **kwargs)
 
-        self.write_metadata(item, metadata)
+        utils.write_metadata(utils.make_path(
+            self.datastore, self.collection, item), metadata)
 
         # update items
         self.items = self.list_items()
 
     def append(self, item, data, npartitions=None, chunksize=1e6,
                epochdate=False, compression="snappy", **kwargs):
-        if not os.path.exists(self._item_path(item)):
+        if not utils.path_exists(self._item_path(item)):
             raise ValueError(
                 """Item do not exists. Use `<collection>.write(...)`""")
 
         try:
             if epochdate:
                 data = utils.datetime_to_int64(data)
-            old_index = dd.read_parquet(self._item_path(item),
+            old_index = dd.read_parquet(self._item_path(item, as_string=True),
                                         columns='index',
                                         engine='fastparquet'
                                         ).index.compute()
@@ -142,18 +147,21 @@ class Collection(object):
                               npartitions=npartitions,
                               chunksize=int(chunksize))
 
-        dd.to_parquet(data, self._item_path(item), append=True,
+        dd.to_parquet(data.fillna(''),
+                      self._item_path(item, as_string=True),
+                      append=True,
                       compression=compression,
                       engine='fastparquet', **kwargs)
 
     def create_snapshot(self, snapshot=None):
         if snapshot:
-            snapshot = ''.join(e for e in snapshot if e.isalnum() or e in ['.', '_'])
+            snapshot = ''.join(
+                e for e in snapshot if e.isalnum() or e in ['.', '_'])
         else:
             snapshot = str(int(time.time() * 1000000))
 
-        src = self.datastore + '/' + self.collection
-        dst = src + '/_snapshots/' + snapshot
+        src = utils.make_path(self.datastore, self.collection)
+        dst = utils.make_path(src, '_snapshots', snapshot)
 
         shutil.copytree(src, dst,
                         ignore=shutil.ignore_patterns("_snapshots"))
@@ -162,22 +170,25 @@ class Collection(object):
         return True
 
     def list_snapshots(self):
-        snapshots = utils.subdirs(self.datastore + '/' +
-                                  self.collection + '/_snapshots/')
-        return [s.split('/')[-1] for s in snapshots]
+        snapshots = utils.subdirs(utils.make_path(
+            self.datastore, self.collection, '_snapshots'))
+        return snapshots
+        # return [s.parts[-1] for s in snapshots]
 
     def delete_snapshot(self, snapshot):
         if snapshot not in self.snapshots:
             # raise ValueError("Snapshot `%s` doesn't exist" % snapshot)
             return True
 
-        shutil.rmtree(self.datastore + '/' + self.collection +
-                      '/_snapshots/' + snapshot)
+        shutil.rmtree(utils.make_path(self.datastore, self.collection,
+                                      '_snapshots', snapshot))
         self.snapshots = self.list_snapshots()
         return True
 
     def delete_snapshots(self):
-        shutil.rmtree(self.datastore + '/' + self.collection + '/_snapshots')
-        os.makedirs(self.datastore + '/' + self.collection + '/_snapshots')
+        snapshots_path = utils.make_path(
+            self.datastore, self.collection, '_snapshots')
+        shutil.rmtree(snapshots_path)
+        os.makedirs(snapshots_path)
         self.snapshots = self.list_snapshots()
         return True

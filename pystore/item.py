@@ -18,7 +18,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
 import dask.dataframe as dd
 import pandas as pd
 
@@ -36,14 +35,17 @@ class Item(object):
         self.snapshot = snapshot
         self.item = item
 
-        self._path = datastore + '/' + collection + '/' + item
+        self._path = utils.make_path(datastore, collection, item)
         if snapshot:
-            snap_path = datastore + '/' + collection + '/_snapshots/' + snapshot
-            self._path = snap_path + '/' + item
-            if not os.path.exists(snap_path):
+            snap_path = utils.make_path(
+                datastore, collection, '_snapshots', snapshot)
+
+            self._path = utils.make_path(snap_path, item)
+
+            if not utils.path_exists(snap_path):
                 raise ValueError("Snapshot `%s` doesn't exist" % snapshot)
             else:
-                if not os.path.exists(self._path):
+                if not utils.path_exists(self._path):
                     raise ValueError(
                         "Item `%s` doesn't exist in this snapshot" % item)
 
