@@ -19,8 +19,6 @@
 # limitations under the License.
 
 import os
-import json
-from datetime import datetime
 import time
 import shutil
 import dask.dataframe as dd
