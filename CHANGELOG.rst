@@ -1,9 +1,10 @@
 Change Log
 ===========
 
-0.0.13
+0.1.0
 ------
 
+- Increased version to fix setup
 - Bugfixes
 
 0.0.12
