@@ -106,7 +106,7 @@ class Collection(object):
                               npartitions=npartitions,
                               chunksize=int(chunksize))
 
-        dd.to_parquet(data.fillna(''),
+        dd.to_parquet(data,
                       self._item_path(item, as_string=True),
                       compression=compression,
                       engine='fastparquet', **kwargs)
@@ -145,7 +145,7 @@ class Collection(object):
                               npartitions=npartitions,
                               chunksize=int(chunksize))
 
-        dd.to_parquet(data.fillna(''),
+        dd.to_parquet(data,
                       self._item_path(item, as_string=True),
                       append=True,
                       compression=compression,
