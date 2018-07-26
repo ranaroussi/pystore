@@ -6,7 +6,6 @@ fast_finish: true
 python:
   - "3.5"
   - "3.6"
-  - "3.7"
 
 before_install:
   - sudo apt-get install libsnappy-dev zlib1g-dev libbz2-dev cmake-data cmake -qq
