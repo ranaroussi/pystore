@@ -1,6 +1,11 @@
 Change Log
 ===========
 
+0.1.1
+------
+
+- Infer datetime format when converting to Pandas
+
 0.1.0
 ------
 
