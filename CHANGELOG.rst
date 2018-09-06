@@ -1,6 +1,12 @@
 Change Log
 ===========
 
+0.1.2
+------
+
+- ``epochdate`` defaults to ``True`` when storing ns data
+- Switched to ``dtype_str`` instead of ``str(dtype)``
+
 0.1.1
 ------
 
