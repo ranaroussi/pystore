@@ -96,7 +96,8 @@ class Collection(object):
         if isinstance(data, Item):
             data = data.to_pandas()
 
-        if epochdate:
+        if epochdate or ("datetime" in data.index.dtype_str and
+                         any(data.index.nanosecond) > 0):
             data = utils.datetime_to_int64(data)
 
         if data.index.name == "":
@@ -124,7 +125,8 @@ class Collection(object):
                 """Item do not exists. Use `<collection>.write(...)`""")
 
         try:
-            if epochdate:
+            if epochdate or ("datetime" in data.index.dtype_str and
+                    any(data.index.nanosecond) > 0):
                 data = utils.datetime_to_int64(data)
             old_index = dd.read_parquet(self._item_path(item, as_string=True),
                                         columns='index',
