@@ -56,8 +56,8 @@ class Item(object):
     def to_pandas(self, parse_dates=True):
         df = self.data.compute()
 
-        if parse_dates and "datetime" not in str(df.index.dtype):
-            if str(df.index.dtype) == 'float64':
+        if parse_dates and "datetime" not in df.index.dtype_str:
+            if df.index.dtype_str == 'float64':
                 df.index = pd.to_datetime(df.index, unit='s',
                                           infer_datetime_format=True)
             else:
