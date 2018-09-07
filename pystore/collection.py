@@ -139,7 +139,7 @@ class Collection(object):
                                         engine='fastparquet'
                                         ).index.compute()
             data = data[~data.index.isin(old_index)]
-        except:
+        except Exception as e:
             return
 
         if data.empty:
