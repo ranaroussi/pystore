@@ -34,7 +34,7 @@ def datetime_to_int64(df):
     allows for cross language/platform portability
     """
     if isinstance(df.index, pd.DatetimeIndex):
-        df.index = df.index.astype(np.int64) / 1e9
+        df.index = df.index.astype(np.int64) #/ 1e9
     return df
 
 
