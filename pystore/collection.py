@@ -93,6 +93,9 @@ class Collection(object):
                 Item already exists. To overwrite, use `overwrite=True`.
                 Otherwise, use `<collection>.append()`""")
 
+        # work on copy
+        data = data.copy()
+
         if isinstance(data, Item):
             data = data.to_pandas()
 
@@ -123,6 +126,9 @@ class Collection(object):
         if not utils.path_exists(self._item_path(item)):
             raise ValueError(
                 """Item do not exists. Use `<collection>.write(...)`""")
+
+        # work on copy
+        data = data.copy()
 
         try:
             if epochdate or ("datetime" in data.index.dtype_str and
