@@ -1,6 +1,11 @@
 Change Log
 ===========
 
+0.1.3
+------
+
+- Fixed support for nanosecond-level data
+
 0.1.2
 ------
 
