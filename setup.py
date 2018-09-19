@@ -30,7 +30,7 @@ with codecs.open(path.join(here, 'README.rst'), encoding='utf-8') as f:
 
 setup(
     name='PyStore',
-    version="0.1.3",
+    version="0.1.4",
     description='Fast data store for Pandas timeseries data',
     long_description=long_description,
     url='https://github.com/ranaroussi/pystore',
@@ -50,6 +50,7 @@ setup(
 
         'Programming Language :: Python :: 3.5',
         'Programming Language :: Python :: 3.6',
+        'Programming Language :: Python :: 3.7',
     ],
     platforms=['linux', 'unix', 'macOS'],
     keywords='dask, datastore, flatfile, pystore',
