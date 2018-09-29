@@ -1,6 +1,11 @@
 Change Log
 ===========
 
+0.1.5
+------
+
+- Added support for Python 2.7
+
 0.1.4
 ------
 

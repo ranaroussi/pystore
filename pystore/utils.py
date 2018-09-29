@@ -20,11 +20,16 @@
 
 import os
 from datetime import datetime
-from pathlib import Path
 import json
 import shutil
 import pandas as pd
 import numpy as np
+
+try:
+    from pathlib import Path
+    Path().expanduser()
+except (ImportError, AttributeError):
+    from pathlib2 import Path
 
 from . import config
 
