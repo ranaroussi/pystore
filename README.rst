@@ -179,7 +179,7 @@ Requirements
 * Fastparquet
 * `Snappy <http://google.github.io/snappy/>`_ (Google's compression/decompression library)
 
-PyStore was tested to work on \*NIX-like systems, including macOS.
+PyStore was tested to work on \*nix-like systems, including macOS.
 
 
 Dependencies:
@@ -187,21 +187,25 @@ Dependencies:
 
 PyStore uses `Snappy <http://google.github.io/snappy/>`_,
 a fast and efficient compression/decompression library from Google.
-You can install Snappy on \*nix-like systems using your system's
-package manager.
+You'll need to install Snappy on your system before installing PyStore.
 
-See the ``python-snappy`` `Github repo <https://github.com/andrix/python-snappy#dependencies>`_
-for more information.
+\* See the ``python-snappy`` `Github repo <https://github.com/andrix/python-snappy#dependencies>`_ for more information.
 
-**TL;DR;**
-
-You can install Snappy C library with following commands:
+***nix Systems:**
 
 - APT: ``sudo apt-get install libsnappy-dev``
 - RPM: ``sudo yum install libsnappy-devel``
-- Brew: ``brew install snappy``
 
-***** Windows users should checkout `Snappy for Windows <https://snappy.machinezoo.com>`_ and `this Stackoverflow post <https://stackoverflow.com/a/43756412/1783569>`_ for help on installing Snappy and ``python-snappy``.
+**macOS:**
+
+.. code::
+
+    $ brew install snappy  # Snappy's C library
+    $ CPPFLAGS="-I/usr/local/include -L/usr/local/lib" pip install python-snappy
+
+**Windows:**
+
+Windows users should checkout `Snappy for Windows <https://snappy.machinezoo.com>`_ and `this Stackoverflow post <https://stackoverflow.com/a/43756412/1783569>`_ for help on installing Snappy and ``python-snappy``.
 
 
 Known Limitation
