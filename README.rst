@@ -17,10 +17,6 @@ PyStore - Fast data store for Pandas timeseries data
     :target: https://travis-ci.org/ranaroussi/pystore
     :alt: Travis-CI build status
 
-.. image:: https://img.shields.io/badge/Patreon-accepting-ff69b4.svg?style=flat
-    :target: https://www.patreon.com/aroussi
-    :alt: Patreon Status
-
 .. image:: https://img.shields.io/github/stars/ranaroussi/pystore.svg?style=social&label=Star&maxAge=60
     :target: https://github.com/ranaroussi/pystore
     :alt: Star this repo
