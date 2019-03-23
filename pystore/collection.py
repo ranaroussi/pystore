@@ -97,7 +97,7 @@ class Collection(object):
         data = data.copy()
 
         if isinstance(data, Item):
-            data = data.to_pandas()
+            data = data.to_pandas(skipna=False)
 
         if epochdate or ("datetime" in data.index.dtype_str and
                          any(data.index.nanosecond) > 0):
@@ -139,7 +139,7 @@ class Collection(object):
                                         engine='fastparquet'
                                         ).index.compute()
             data = data[~data.index.isin(old_index)]
-        except Exception as e:
+        except Exception:
             return
 
         if data.empty:
