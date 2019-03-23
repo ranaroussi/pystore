@@ -1,6 +1,11 @@
 Change Log
 ===========
 
+
+0.1.6
+------
+- Misc improvements
+
 0.1.5
 ------
 
