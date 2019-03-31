@@ -1,9 +1,9 @@
 toolz>=0.9.0
 partd>= 0.3.8
-cloudpickle>=0.2.1
-distributed>=1.21
-pandas>=0.22.0
+cloudpickle>=0.8.0
+distributed>=1.15
+pandas>=0.23.0
 numpy>=1.14.0
 python-snappy>=0.5.2
-fastparquet>=0.1.5
-dask>=0.17.5
+fastparquet>=0.3.0
+dask>=1.1.4
