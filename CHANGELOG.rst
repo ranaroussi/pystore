@@ -1,6 +1,9 @@
 Change Log
 ===========
 
+0.1.7
+------
+- Using ``os.path.expanduser("~")`` to determine user's home directory
 
 0.1.6
 ------
