@@ -40,12 +40,10 @@ def datetime_to_int64(df):
     allows for cross language/platform portability
     """
 
-    if isinstance(df.index, pd.DatetimeIndex):
-        df.index = df.index.astype(np.int64)  #/ 1e9
-
-    if isinstance(df.index, dd.Index):
-        df['index'] = df.index.astype(np.int64)
-        df = df.set_index('index')
+    if isinstance(df.index, dd.Index) and (
+            isinstance(df.index, pd.DatetimeIndex) and
+            any(df.index.nanosecond) > 0):
+        df.index = df.index.astype(np.int64)  # / 1e9
 
     return df
 

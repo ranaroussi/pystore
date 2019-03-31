@@ -99,10 +99,7 @@ class Collection(object):
         if isinstance(data, Item):
             data = data.to_pandas(skipna=False)
 
-        if epochdate or \
-            "datetime" in str(data.index.dtype) or \
-            ("datetime" in data.index.dtype_str and
-                any(data.index.nanosecond) > 0):
+        if epochdate or "datetime" in str(data.index.dtype):
             data = utils.datetime_to_int64(data)
 
         if data.index.name == "":
