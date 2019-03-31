@@ -24,6 +24,7 @@ import json
 import shutil
 import pandas as pd
 import numpy as np
+import dask.dataframe as dd
 
 try:
     from pathlib import Path
@@ -38,8 +39,10 @@ def datetime_to_int64(df):
     """ convert datetime index to epoch int
     allows for cross language/platform portability
     """
-    if isinstance(df.index, pd.DatetimeIndex):
-        df.index = df.index.astype(np.int64) #/ 1e9
+
+    if isinstance(df.index, pd.DatetimeIndex) or \
+            isinstance(df.index, dd.Index):
+        df.index = df.index.astype(np.int64)  # / 1e9
     return df
 
 

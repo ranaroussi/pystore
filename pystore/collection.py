@@ -99,16 +99,19 @@ class Collection(object):
         if isinstance(data, Item):
             data = data.to_pandas(skipna=False)
 
-        if epochdate or ("datetime" in data.index.dtype_str and
-                         any(data.index.nanosecond) > 0):
+        if epochdate or \
+            "datetime" in str(data.index.dtype) or \
+            ("datetime" in data.index.dtype_str and
+                any(data.index.nanosecond) > 0):
             data = utils.datetime_to_int64(data)
 
         if data.index.name == "":
             data.index.name = "index"
 
-        data = dd.from_pandas(data,
-                              npartitions=npartitions,
-                              chunksize=int(chunksize))
+        if not isinstance(data, dd.DataFrame):
+            data = dd.from_pandas(data,
+                                  npartitions=npartitions,
+                                  chunksize=int(chunksize))
 
         dd.to_parquet(data,
                       self._item_path(item, as_string=True),
@@ -132,7 +135,7 @@ class Collection(object):
 
         try:
             if epochdate or ("datetime" in data.index.dtype_str and
-                    any(data.index.nanosecond) > 0):
+                             any(data.index.nanosecond) > 0):
                 data = utils.datetime_to_int64(data)
             old_index = dd.read_parquet(self._item_path(item, as_string=True),
                                         columns='index',

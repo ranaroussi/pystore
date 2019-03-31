@@ -4,6 +4,7 @@ Change Log
 0.1.7
 ------
 - Using ``os.path.expanduser("~")`` to determine user's home directory
+- ``collection.write(...)`` accepts Dask dataframes
 
 0.1.6
 ------
