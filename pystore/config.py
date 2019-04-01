@@ -19,4 +19,4 @@
 # limitations under the License.
 
 from os.path import expanduser as _expanduser
-DEFAULT_PATH = _expanduser('~/.pystore')
+DEFAULT_PATH = _expanduser('~/pystore')

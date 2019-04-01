@@ -80,8 +80,8 @@ Using PyStore
     import pystore
     import quandl
 
-    # Set storage path (optional, default is `~/.pystore`)
-    pystore.set_path('/usr/share/pystore')
+    # Set storage path (optional, default is `~/pystore`)
+    pystore.set_path("~/pystore")
 
     # List stores
     pystore.list_stores()
