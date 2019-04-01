@@ -35,6 +35,35 @@ except (ImportError, AttributeError):
 from . import config
 
 
+def read_csv(urlpath, *args, **kwargs):
+    def rename_dask_index(df, name):
+        df.index.name = name
+        return df
+
+    index_col = index_name = None
+
+    if "index" in kwargs:
+        del kwargs["index"]
+    if "index_col" in kwargs:
+        index_col = kwargs["index_col"]
+        if isinstance(index_col, list):
+            index_col = index_col[0]
+        del kwargs["index_col"]
+    if "index_name" in kwargs:
+        index_name = kwargs["index_name"]
+        del kwargs["index_name"]
+
+    df = dd.read_csv(urlpath, *args, **kwargs)
+
+    if index_col is not None:
+        df = df.set_index(index_col)
+
+    if index_name is not None:
+        df = df.map_partitions(rename_dask_index, index_name)
+
+    return df
+
+
 def datetime_to_int64(df):
     """ convert datetime index to epoch int
     allows for cross language/platform portability

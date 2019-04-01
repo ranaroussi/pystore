@@ -1,6 +1,10 @@
 Change Log
 ===========
 
+0.1.8
+------
+- Added ``pystore.read-csv()`` to quickly read dask dataframe, ready for storage
+
 0.1.7
 ------
 - Using ``os.path.expanduser("~")`` to determine user's home directory
