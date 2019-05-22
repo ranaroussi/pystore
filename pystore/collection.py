@@ -85,7 +85,7 @@ class Collection(object):
         return True
 
     def write(self, item, data, metadata={},
-              npartitions=None, chunksize=1e6, overwrite=False,
+              npartitions=None, chunksize=None, overwrite=False,
               epochdate=False, compression="snappy", **kwargs):
 
         if utils.path_exists(self._item_path(item)) and not overwrite:
@@ -106,9 +106,13 @@ class Collection(object):
             data.index.name = "index"
 
         if not isinstance(data, dd.DataFrame):
+            if npartitions is None and chunksize is None:
+                npartitions = None
+                chunksize = int(1e6)
+
             data = dd.from_pandas(data,
                                   npartitions=npartitions,
-                                  chunksize=int(chunksize))
+                                  chunksize=chunksize)
 
         dd.to_parquet(data,
                       self._item_path(item, as_string=True),
