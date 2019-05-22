@@ -93,11 +93,11 @@ class Collection(object):
                 Item already exists. To overwrite, use `overwrite=True`.
                 Otherwise, use `<collection>.append()`""")
 
-        # work on copy
-        data = data.copy()
-
         if isinstance(data, Item):
-            data = data.to_pandas(skipna=False)
+            data = data.to_pandas()
+        else:
+            # work on copy
+            data = data.copy()
 
         if epochdate or "datetime" in str(data.index.dtype):
             data = utils.datetime_to_int64(data)
