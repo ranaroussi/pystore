@@ -1,6 +1,10 @@
 Change Log
 ===========
 
+0.1.9
+------
+- Fixed issues #13 and #15
+
 0.1.8
 ------
 - Added ``pystore.read-csv()`` to quickly read dask dataframe, ready for storage
