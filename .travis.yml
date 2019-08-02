@@ -3,10 +3,6 @@ language: python
 sudo: true
 fast_finish: true
 
-# python:
-#   - "3.5"
-#   - "3.6"
-
 matrix:
   include:
     - python: 2.7
@@ -20,7 +16,6 @@ before_install:
   - sudo apt-get install libsnappy-dev zlib1g-dev libbz2-dev cmake-data cmake -qq
 
 install:
-  - pip install snappy
   - pip install Cython
   - pip install -r requirements.txt
   - pip install .
