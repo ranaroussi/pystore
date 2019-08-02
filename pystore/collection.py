@@ -135,7 +135,7 @@ class Collection(object):
         # update items
         self._items = self.list_items()
 
-    def append(self, item, data, npartitions=None, chunksize=1e6,
+    def append(self, item, data, npartitions=None, chunksize=None,
                epochdate=False, compression="snappy", **kwargs):
         if not utils.path_exists(self._item_path(item)):
             raise ValueError(
@@ -162,6 +162,10 @@ class Collection(object):
 
         if data.index.name == "":
             data.index.name = "index"
+
+        if npartitions is None and chunksize is None:
+            npartitions = None
+            chunksize = int(1e6)
 
         data = dd.from_pandas(data,
                               npartitions=npartitions,
