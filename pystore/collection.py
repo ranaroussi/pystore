@@ -56,7 +56,7 @@ class Collection(object):
     def list_items(self, **kwargs):
         dirs = utils.subdirs(utils.make_path(self.datastore, self.collection))
         if not kwargs:
-            return dirs
+            return set(dirs)
 
         matched = []
         for d in dirs:
@@ -73,7 +73,7 @@ class Collection(object):
             if m == len(kwargs):
                 matched.append(d)
 
-        return matched
+        return set(matched)
 
     def item(self, item, snapshot=None, filters=None, columns=None):
         return Item(item, self.datastore, self.collection,
