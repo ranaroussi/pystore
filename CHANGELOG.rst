@@ -1,9 +1,14 @@
 Change Log
 ===========
 
+0.1.11
+------
+- Reversed ``list_snapshots()`` behaviour
+- Added ``collection.threaded_write(...)`` method
+- ``collection.items`` being updated using ``items.add()`` and an async/threaded directory read
+
 0.1.10
 ------
-
 - Switched from ``dtype_str`` to ``str(dtype)`` (Pandas 0.25+ compatibility)
 - Implemented ``collection.items`` and ``collection.snapshots`` as ``@property`` to reduce initialization overhead
 - ``collection.items`` and ``collection.snapshots`` are now of type ``set()``
