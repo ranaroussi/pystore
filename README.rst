@@ -174,6 +174,7 @@ Requirements
 * Dask
 * Fastparquet
 * `Snappy <http://google.github.io/snappy/>`_ (Google's compression/decompression library)
+* multitasking
 
 PyStore was tested to work on \*nix-like systems, including macOS.
 
