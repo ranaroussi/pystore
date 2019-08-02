@@ -1,4 +1,3 @@
-fsspec>=0.4.0
 python-snappy>=0.5.4
 toolz>=0.10.0
 partd>=1.0.0
