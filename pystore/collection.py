@@ -145,7 +145,7 @@ class Collection(object):
         data = data.copy()
 
         try:
-            if epochdate or ("datetime" in data.index.dtype_str and
+            if epochdate or ("datetime" in str(data.index.dtype) and
                              any(data.index.nanosecond) > 0):
                 data = utils.datetime_to_int64(data)
             old_index = dd.read_parquet(self._item_path(item, as_string=True),
