@@ -34,8 +34,18 @@ class Collection(object):
     def __init__(self, collection, datastore):
         self.datastore = datastore
         self.collection = collection
-        self.items = self.list_items()
-        self.snapshots = self.list_snapshots()
+        self._items = set()
+        self._snapshots = set()
+
+    @property
+    def items(self):
+        self._items = self.list_items()
+        return self._items
+
+    @property
+    def snapshots(self):
+        self._snapshots = self.list_snapshots()
+        return self._snapshots
 
     def _item_path(self, item, as_string=False):
         p = utils.make_path(self.datastore, self.collection, item)
@@ -81,7 +91,7 @@ class Collection(object):
 
     def delete_item(self, item):
         shutil.rmtree(self._item_path(item))
-        self.items = self.list_items()
+        self._items = self.list_items()
         return True
 
     def write(self, item, data, metadata={},
@@ -123,7 +133,7 @@ class Collection(object):
             self.datastore, self.collection, item), metadata)
 
         # update items
-        self.items = self.list_items()
+        self._items = self.list_items()
 
     def append(self, item, data, npartitions=None, chunksize=1e6,
                epochdate=False, compression="snappy", **kwargs):
@@ -176,23 +186,23 @@ class Collection(object):
         shutil.copytree(src, dst,
                         ignore=shutil.ignore_patterns("_snapshots"))
 
-        self.snapshots = self.list_snapshots()
+        self._snapshots = self.list_snapshots()
         return True
 
     def list_snapshots(self):
         snapshots = utils.subdirs(utils.make_path(
             self.datastore, self.collection, '_snapshots'))
-        return snapshots
+        return set(snapshots)
         # return [s.parts[-1] for s in snapshots]
 
     def delete_snapshot(self, snapshot):
-        if snapshot not in self.snapshots:
+        if snapshot not in self._snapshots:
             # raise ValueError("Snapshot `%s` doesn't exist" % snapshot)
             return True
 
         shutil.rmtree(utils.make_path(self.datastore, self.collection,
                                       '_snapshots', snapshot))
-        self.snapshots = self.list_snapshots()
+        self._snapshots = self.list_snapshots()
         return True
 
     def delete_snapshots(self):
@@ -200,5 +210,5 @@ class Collection(object):
             self.datastore, self.collection, '_snapshots')
         shutil.rmtree(snapshots_path)
         os.makedirs(snapshots_path)
-        self.snapshots = self.list_snapshots()
+        self._snapshots = self.list_snapshots()
         return True
