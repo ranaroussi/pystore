@@ -190,7 +190,7 @@ class Collection(object):
         shutil.copytree(src, dst,
                         ignore=shutil.ignore_patterns("_snapshots"))
 
-        self._snapshots = self.list_snapshots()
+        self.snapshots = self.list_snapshots()
         return True
 
     def list_snapshots(self):
@@ -200,13 +200,13 @@ class Collection(object):
         # return [s.parts[-1] for s in snapshots]
 
     def delete_snapshot(self, snapshot):
-        if snapshot not in self._snapshots:
+        if snapshot not in self.snapshots:
             # raise ValueError("Snapshot `%s` doesn't exist" % snapshot)
             return True
 
         shutil.rmtree(utils.make_path(self.datastore, self.collection,
                                       '_snapshots', snapshot))
-        self._snapshots = self.list_snapshots()
+        self.snapshots = self.list_snapshots()
         return True
 
     def delete_snapshots(self):
@@ -214,5 +214,5 @@ class Collection(object):
             self.datastore, self.collection, '_snapshots')
         shutil.rmtree(snapshots_path)
         os.makedirs(snapshots_path)
-        self._snapshots = self.list_snapshots()
+        self.snapshots = self.list_snapshots()
         return True
