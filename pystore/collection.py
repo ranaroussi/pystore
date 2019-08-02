@@ -22,6 +22,7 @@ import os
 import time
 import shutil
 import dask.dataframe as dd
+import multitasking
 
 from . import utils
 from .item import Item
@@ -34,24 +35,18 @@ class Collection(object):
     def __init__(self, collection, datastore):
         self.datastore = datastore
         self.collection = collection
-        self._items = set()
-        self._snapshots = set()
-
-    @property
-    def items(self):
-        self._items = self.list_items()
-        return self._items
-
-    @property
-    def snapshots(self):
-        self._snapshots = self.list_snapshots()
-        return self._snapshots
+        self.items = self.list_items()
+        self.snapshots = self.list_snapshots()
 
     def _item_path(self, item, as_string=False):
         p = utils.make_path(self.datastore, self.collection, item)
         if as_string:
             return str(p)
         return p
+
+    @multitasking.task
+    def _list_items_threaded(self, **kwargs):
+        self.items = self.list_items(**kwargs)
 
     def list_items(self, **kwargs):
         dirs = utils.subdirs(utils.make_path(self.datastore, self.collection))
@@ -91,8 +86,18 @@ class Collection(object):
 
     def delete_item(self, item):
         shutil.rmtree(self._item_path(item))
-        self._items = self.list_items()
+        # self.items.remove(item)
+        self.items = self.list_items()
         return True
+
+    @multitasking.task
+    def write_threaded(self, item, data, metadata={},
+                       npartitions=None, chunksize=None,
+                       overwrite=False, epochdate=False,
+                       compression="snappy", **kwargs):
+        return self.write(item, data, metadata,
+                          npartitions, chunksize, overwrite,
+                          epochdate, compression, **kwargs)
 
     def write(self, item, data, metadata={},
               npartitions=None, chunksize=None, overwrite=False,
@@ -133,7 +138,9 @@ class Collection(object):
             self.datastore, self.collection, item), metadata)
 
         # update items
-        self._items = self.list_items()
+        self.items.add(item)
+        self._list_items_threaded()
+        # self.items = self.list_items()
 
     def append(self, item, data, npartitions=None, chunksize=None,
                epochdate=False, compression="snappy", **kwargs):
