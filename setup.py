@@ -57,8 +57,10 @@ setup(
     platforms=['linux', 'unix', 'macOS'],
     keywords='dask, datastore, flatfile, pystore',
     packages=find_packages(exclude=['contrib', 'docs', 'tests', 'examples']),
-    install_requires=['pandas', 'numpy', 'fastparquet', 'python-snappy',
-                      'dask', 'toolz', 'partd', 'cloudpickle', 'distributed'],
+    install_requires=['fsspec>=0.4.0', 'python-snappy>=0.5.4',
+                      'toolz>=0.10.0', 'partd>=1.0.0', 'cloudpickle>=1.2.1',
+                      'distributed>=2.2.0', 'pandas>=0.24.0', 'numpy>=1.15.4',
+                      'fastparquet>=0.3.0', 'dask>=2.2.0'],
     entry_points={
         'console_scripts': [
             'sample=sample:main',
