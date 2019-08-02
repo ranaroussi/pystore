@@ -194,10 +194,24 @@ You'll need to install Snappy on your system before installing PyStore.
 
 **macOS:**
 
+First, install Snappy's C library using `Homebrew <https://brew.sh>`_:
+
 .. code::
 
-    $ brew install snappy  # Snappy's C library
+    $ brew install snappy
+
+Then, install Python's snappy using conda:
+
+.. code::
+
+    $ conda install python-snappy -c conda-forge
+
+...or, using `pip`:
+
+.. code::
+
     $ CPPFLAGS="-I/usr/local/include -L/usr/local/lib" pip install python-snappy
+
 
 **Windows:**
 
