@@ -16,8 +16,8 @@ before_install:
   - sudo apt-get install libsnappy-dev zlib1g-dev libbz2-dev cmake-data cmake -qq
 
 install:
+  - if [[ $TRAVIS_PYTHON_VERSION != "2.7" ]]; then pip install 'fsspec>=0.3.3'; fi
   - pip install python-snappy
-  - pip install 'fsspec>=0.3.3'
   - pip install Cython
   - pip install -r requirements.txt
   - pip install .
