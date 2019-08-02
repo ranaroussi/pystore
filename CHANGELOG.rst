@@ -1,6 +1,15 @@
 Change Log
 ===========
 
+0.1.10
+------
+
+- Switched from ``dtype_str`` to ``str(dtype)`` (Pandas 0.25+ compatibility)
+- Implemented ``collection.items`` and ``collection.snapshots`` as ``@property`` to reduce initialization overhead
+- ``collection.items`` and ``collection.snapshots`` are now of type ``set()``
+- Option to specify both ``npartitions`` and ``chunksize`` in ``collection.append()``
+
+
 0.1.9
 ------
 - Fixed issues #13 and #15
