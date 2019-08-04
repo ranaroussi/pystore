@@ -219,10 +219,10 @@ Then, install Python's snappy using conda:
 Windows users should checkout `Snappy for Windows <https://snappy.machinezoo.com>`_ and `this Stackoverflow post <https://stackoverflow.com/a/43756412/1783569>`_ for help on installing Snappy and ``python-snappy``.
 
 
-Known Limitation
-================
+Roadmap
+=======
 
-PyStore currently only offers support for local filesystem.
+PyStore currently offers support for local filesystem.
 I plan on adding support for Amazon S3 (via `s3fs <http://s3fs.readthedocs.io/>`_),
 Google Cloud Storage (via `gcsfs <https://github.com/dask/gcsfs/>`_)
 and Hadoop Distributed File System (via `hdfs3 <http://hdfs3.readthedocs.io/>`_) in the future.
