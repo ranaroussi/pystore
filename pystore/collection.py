@@ -84,24 +84,28 @@ class Collection(object):
         return float(str(data.index).split(
                      '\nName')[0].split('\n')[-1].split(' ')[0])
 
-    def delete_item(self, item):
+    def delete_item(self, item, reload_items=True):
         shutil.rmtree(self._item_path(item))
-        # self.items.remove(item)
-        self.items = self.list_items()
+        self.items.remove(item)
+        if reload_items:
+            self.items = self._list_items_threaded()
         return True
 
     @multitasking.task
     def write_threaded(self, item, data, metadata={},
                        npartitions=None, chunksize=None,
                        overwrite=False, epochdate=False,
-                       compression="snappy", **kwargs):
+                       compression="snappy", reload_items=True,
+                       **kwargs):
         return self.write(item, data, metadata,
                           npartitions, chunksize, overwrite,
-                          epochdate, compression, **kwargs)
+                          epochdate, compression, reload_items,
+                          **kwargs)
 
     def write(self, item, data, metadata={},
               npartitions=None, chunksize=None, overwrite=False,
-              epochdate=False, compression="snappy", **kwargs):
+              epochdate=False, compression="snappy", reload_items=True,
+              **kwargs):
 
         if utils.path_exists(self._item_path(item)) and not overwrite:
             raise ValueError("""
@@ -139,8 +143,8 @@ class Collection(object):
 
         # update items
         self.items.add(item)
-        self._list_items_threaded()
-        # self.items = self.list_items()
+        if reload_items:
+            self._list_items_threaded()
 
     def append(self, item, data, npartitions=None, chunksize=None,
                epochdate=False, compression="snappy", **kwargs):
