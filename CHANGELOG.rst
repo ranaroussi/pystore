@@ -1,6 +1,10 @@
 Change Log
 ===========
 
+0.1.12
+------
+- Added ``reload_items`` (default ``True``) to ``collection.write`` and ``collection.delete`` to explicitly re-read the collection's items' directory
+
 0.1.11
 ------
 - Reversed ``list_snapshots()`` behaviour
