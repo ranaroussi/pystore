@@ -1,23 +1,28 @@
 Change Log
 ===========
 
+0.1.13
+------
+- `reload_items` defaults to `False`
+- Default `npartitions` and `chunksize` are better optimized (~99MB/partition)
+- `collection.apply()` repartitions the dataframe based on new data size (~99MB/partition)
+
 0.1.12
 ------
-- Added ``reload_items`` (default ``True``) to ``collection.write`` and ``collection.delete`` to explicitly re-read the collection's items' directory
+- Added `reload_items` (default `True`) to `collection.write` and `collection.delete` to explicitly re-read the collection's items' directory
 
 0.1.11
 ------
-- Reversed ``list_snapshots()`` behaviour
-- Added ``collection.threaded_write(...)`` method
-- ``collection.items`` being updated using ``items.add()`` and an async/threaded directory read
+- Reversed `list_snapshots()` behaviour
+- Added `collection.threaded_write(...)` method
+- `collection.items` being updated using `items.add()` and an async/threaded directory read
 
 0.1.10
 ------
-- Switched from ``dtype_str`` to ``str(dtype)`` (Pandas 0.25+ compatibility)
-- Implemented ``collection.items`` and ``collection.snapshots`` as ``@property`` to reduce initialization overhead
-- ``collection.items`` and ``collection.snapshots`` are now of type ``set()``
-- Option to specify both ``npartitions`` and ``chunksize`` in ``collection.append()``
-
+- Switched from `dtype_str` to `str(dtype)` (Pandas 0.25+ compatibility)
+- Implemented `collection.items` and `collection.snapshots` as `@property` to reduce initialization overhead
+- `collection.items` and `collection.snapshots` are now of type `set()`
+- Option to specify both `npartitions` and `chunksize` in `collection.append()`
 
 0.1.9
 ------
@@ -25,12 +30,12 @@ Change Log
 
 0.1.8
 ------
-- Added ``pystore.read-csv()`` to quickly read dask dataframe, ready for storage
+- Added `pystore.read-csv()` to quickly read dask dataframe, ready for storage
 
 0.1.7
 ------
-- Using ``os.path.expanduser("~")`` to determine user's home directory
-- ``collection.write(...)`` accepts Dask dataframes
+- Using `os.path.expanduser("~")` to determine user's home directory
+- `collection.write(...)` accepts Dask dataframes
 
 0.1.6
 ------
@@ -54,8 +59,8 @@ Change Log
 0.1.2
 ------
 
-- ``epochdate`` defaults to ``True`` when storing ns data
-- Switched to ``dtype_str`` instead of ``str(dtype)``
+- `epochdate` defaults to `True` when storing ns data
+- Switched to `dtype_str` instead of `str(dtype)`
 
 0.1.1
 ------
@@ -71,7 +76,7 @@ Change Log
 0.0.12
 ------
 
-- Switched path parsing to ``pathlib.Path`` to help with cross-platform compatibility
+- Switched path parsing to `pathlib.Path` to help with cross-platform compatibility
 - Minor code refactoring
 
 0.0.11
@@ -82,7 +87,7 @@ Change Log
 0.0.10
 ------
 
-- Added ``pystore.delete_store(NAME)``, ``pystore.delete_stores()``, and ``pystore.get_path()``
+- Added `pystore.delete_store(NAME)`, `pystore.delete_stores()`, and `pystore.get_path()`
 - Added Jupyter notebook example to Github repo
 - Minor code refactoring
 
@@ -102,14 +107,14 @@ Change Log
 -----
 
 - Added support for snapshots
-- ``collection.list_items()`` supports querying based on metadata
+- `collection.list_items()` supports querying based on metadata
 - Some code refactoring
 
 -----
 
 - Exposing more methods
-- Path setting moved to ``pystore.set_path()``
-- ``Store.collection()`` auto-creates collection
+- Path setting moved to `pystore.set_path()`
+- `Store.collection()` auto-creates collection
 - Updated readme to reflect changes
 - Minor code refactoring
 
@@ -117,16 +122,16 @@ Change Log
 0.0.5
 -----
 
-- Not converting datetimte to epoch by defaults (use ``epochdate=True`` to enable)
+- Not converting datetimte to epoch by defaults (use `epochdate=True` to enable)
 - Using "snappy" compression by default
-- Metadata's "_updated" is now a ``YYYY-MM-DD HH:MM:SS.MS`` string
+- Metadata's "_updated" is now a `YYYY-MM-DD HH:MM:SS.MS` string
 
 0.0.4
 -----
 
 * Can pass columns and filters to Item object
 * Faster append
-* ``Store.path`` is now public
+* `Store.path` is now public
 
 0.0.3
 -----
@@ -136,7 +141,7 @@ Change Log
 0.0.2
 -----
 
-* Switched readme/changelog files from ``.md`` to ``.rst``.
+* Switched readme/changelog files from `.md` to `.rst`.
 
 0.0.1
 -----

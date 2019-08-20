@@ -28,6 +28,9 @@ from . import utils
 from .item import Item
 
 
+DEFAULT_PARTITION_SIZE = 99e+6  # ~99MB
+
+
 class Collection(object):
     def __repr__(self):
         return 'PyStore.collection <%s>' % self.collection
@@ -77,14 +80,14 @@ class Collection(object):
     def index(self, item, last=False):
         data = dd.read_parquet(self._item_path(item, as_string=True),
                                columns='index',
-                               engine='fastparquet')
+                               engine="fastparquet")
         if not last:
             return data.index.compute()
 
         return float(str(data.index).split(
                      '\nName')[0].split('\n')[-1].split(' ')[0])
 
-    def delete_item(self, item, reload_items=True):
+    def delete_item(self, item, reload_items=False):
         shutil.rmtree(self._item_path(item))
         self.items.remove(item)
         if reload_items:
@@ -95,16 +98,15 @@ class Collection(object):
     def write_threaded(self, item, data, metadata={},
                        npartitions=None, chunksize=None,
                        overwrite=False, epochdate=False,
-                       compression="snappy", reload_items=True,
-                       **kwargs):
+                       reload_items=False, **kwargs):
         return self.write(item, data, metadata,
                           npartitions, chunksize, overwrite,
-                          epochdate, compression, reload_items,
+                          epochdate, reload_items,
                           **kwargs)
 
     def write(self, item, data, metadata={},
               npartitions=None, chunksize=None, overwrite=False,
-              epochdate=False, compression="snappy", reload_items=True,
+              epochdate=False, reload_items=False,
               **kwargs):
 
         if utils.path_exists(self._item_path(item)) and not overwrite:
@@ -126,17 +128,16 @@ class Collection(object):
 
         if not isinstance(data, dd.DataFrame):
             if npartitions is None and chunksize is None:
-                npartitions = None
-                chunksize = int(1e6)
+                npartitions = int(
+                    1 + data.memory_usage(deep=True).sum(
+                    ) // DEFAULT_PARTITION_SIZE)
 
             data = dd.from_pandas(data,
                                   npartitions=npartitions,
                                   chunksize=chunksize)
 
-        dd.to_parquet(data,
-                      self._item_path(item, as_string=True),
-                      compression=compression,
-                      engine='fastparquet', **kwargs)
+        dd.to_parquet(data, self._item_path(item, as_string=True),
+                      compression="snappy", engine="fastparquet", **kwargs)
 
         utils.write_metadata(utils.make_path(
             self.datastore, self.collection, item), metadata)
@@ -146,8 +147,9 @@ class Collection(object):
         if reload_items:
             self._list_items_threaded()
 
-    def append(self, item, data, npartitions=None, chunksize=None,
-               epochdate=False, compression="snappy", **kwargs):
+    def append(self, item, data, npartitions=1, epochdate=False,
+               threaded=False, reload_items=False, **kwargs):
+
         if not utils.path_exists(self._item_path(item)):
             raise ValueError(
                 """Item do not exists. Use `<collection>.write(...)`""")
@@ -161,7 +163,7 @@ class Collection(object):
                 data = utils.datetime_to_int64(data)
             old_index = dd.read_parquet(self._item_path(item, as_string=True),
                                         columns='index',
-                                        engine='fastparquet'
+                                        engine="fastparquet"
                                         ).index.compute()
             data = data[~data.index.isin(old_index)]
         except Exception:
@@ -174,19 +176,19 @@ class Collection(object):
         if data.index.name == "":
             data.index.name = "index"
 
-        if npartitions is None and chunksize is None:
-            npartitions = None
-            chunksize = int(1e6)
+        # combine old dataframe with new
+        current = self.item(item)
+        new = dd.from_pandas(data, npartitions=npartitions)
+        combined = current.data.append(new)
 
-        data = dd.from_pandas(data,
-                              npartitions=npartitions,
-                              chunksize=int(chunksize))
+        combined.repartition(
+            npartitions=int(1 + combined.memory_usage(deep=True).sum(
+            ).compute() // DEFAULT_PARTITION_SIZE))
 
-        dd.to_parquet(data,
-                      self._item_path(item, as_string=True),
-                      append=True,
-                      compression=compression,
-                      engine='fastparquet', **kwargs)
+        # write data
+        write = self.write_threaded if threaded else self.write
+        write(item, combined, metadata=current.metadata, overwrite=True,
+              epochdate=epochdate, reload_items=reload_items, **kwargs)
 
     def create_snapshot(self, snapshot=None):
         if snapshot:
