@@ -90,8 +90,10 @@ def path_exists(path):
 
 def read_metadata(path):
     """ use this to construct paths for future storage support """
-    with make_path(path, 'metadata.json').open() as f:
-        return json.load(f)
+    dest = make_path(path, "metadata.json")
+    if path_exists(dest):
+        with dest.open() as f:
+            return json.load(f)
 
 
 def write_metadata(path, metadata={}):
