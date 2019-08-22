@@ -18,6 +18,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+""" temp fix for fastparquet 0.3.2 and numba 0.45.1"""
+try:
+    import numba as _
+except ImportError:
+    pass
+
 from .store import store
 from .utils import (
     read_csv, set_path, get_path,
