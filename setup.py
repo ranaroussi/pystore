@@ -59,7 +59,7 @@ setup(
     packages=find_packages(exclude=['contrib', 'docs', 'tests', 'examples']),
     install_requires=['python-snappy', 'multitasking', 'toolz', 'partd',
                       'cloudpickle', 'distributed', 'pandas', 'numpy',
-                      'fastparquet', 'dask'],
+                      'fastparquet==0.3.0', 'dask'],
     entry_points={
         'console_scripts': [
             'sample=sample:main',
