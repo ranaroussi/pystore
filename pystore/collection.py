@@ -126,18 +126,19 @@ class Collection(object):
         if data.index.name == "":
             data.index.name = "index"
 
-        if not isinstance(data, dd.DataFrame):
-            if npartitions is None and chunksize is None:
+        if npartitions is None and chunksize is None:
+            memusage = data.memory_usage(deep=True).sum()
+            if isinstance(data, dd.DataFrame):
                 npartitions = int(
-                    1 + data.memory_usage(deep=True).sum(
-                    ) // DEFAULT_PARTITION_SIZE)
-
-            data = dd.from_pandas(data,
-                                  npartitions=npartitions,
-                                  chunksize=chunksize)
+                    1 + memusage.compute() // DEFAULT_PARTITION_SIZE)
+                data.repartition(npartitions=npartitions)
+            else:
+                npartitions = int(
+                    1 + memusage // DEFAULT_PARTITION_SIZE)
+                data = dd.from_pandas(data, npartitions=npartitions)
 
         dd.to_parquet(data, self._item_path(item, as_string=True),
-                      compression="snappy", engine="fastparquet", **kwargs)
+                      compression="snappy", engine=self.engine, **kwargs)
 
         utils.write_metadata(utils.make_path(
             self.datastore, self.collection, item), metadata)
@@ -147,7 +148,7 @@ class Collection(object):
         if reload_items:
             self._list_items_threaded()
 
-    def append(self, item, data, npartitions=1, epochdate=False,
+    def append(self, item, data, npartitions=None, epochdate=False,
                threaded=False, reload_items=False, **kwargs):
 
         if not utils.path_exists(self._item_path(item)):
@@ -162,8 +163,7 @@ class Collection(object):
                              any(data.index.nanosecond) > 0):
                 data = utils.datetime_to_int64(data)
             old_index = dd.read_parquet(self._item_path(item, as_string=True),
-                                        columns='index',
-                                        engine="fastparquet"
+                                        columns="index", engine=self.engine
                                         ).index.compute()
             data = data[~data.index.isin(old_index)]
         except Exception:
@@ -176,24 +176,27 @@ class Collection(object):
         if data.index.name == "":
             data.index.name = "index"
 
+        if npartitions is None:
+            memusage = data.memory_usage(deep=True).sum()
+            if isinstance(data, dd.DataFrame):
+                memusage = memusage.compute()
+            npartitions = int(1 + memusage // DEFAULT_PARTITION_SIZE)
+
         # combine old dataframe with new
         current = self.item(item)
         new = dd.from_pandas(data, npartitions=npartitions)
         combined = current.data.append(new)
 
-        combined.repartition(
-            npartitions=int(1 + combined.memory_usage(deep=True).sum(
-            ).compute() // DEFAULT_PARTITION_SIZE))
-
         # write data
         write = self.write_threaded if threaded else self.write
-        write(item, combined, metadata=current.metadata, overwrite=True,
+        write(item, combined, npartitions=None, chunksize=None,
+              metadata=current.metadata, overwrite=True,
               epochdate=epochdate, reload_items=reload_items, **kwargs)
 
     def create_snapshot(self, snapshot=None):
         if snapshot:
-            snapshot = ''.join(
-                e for e in snapshot if e.isalnum() or e in ['.', '_'])
+            snapshot = "".join(
+                e for e in snapshot if e.isalnum() or e in [".", "_"])
         else:
             snapshot = str(int(time.time() * 1000000))
 
