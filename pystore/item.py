@@ -26,7 +26,7 @@ from . import utils
 
 class Item(object):
     def __repr__(self):
-        return 'PyStore.item <%s/%s>' % (self.collection, self.item)
+        return "PyStore.item <%s/%s>" % (self.collection, self.item)
 
     def __init__(self, item, datastore, collection,
                  snapshot=None, filters=None, columns=None):
@@ -38,7 +38,7 @@ class Item(object):
         self._path = utils.make_path(datastore, collection, item)
         if snapshot:
             snap_path = utils.make_path(
-                datastore, collection, '_snapshots', snapshot)
+                datastore, collection, "_snapshots", snapshot)
 
             self._path = utils.make_path(snap_path, item)
 
@@ -57,9 +57,9 @@ class Item(object):
         df = self.data.compute()
 
         if parse_dates and "datetime" not in str(df.index.dtype):
-            df.index.name = ''
-            if str(df.index.dtype) == 'float64':
-                df.index = pd.to_datetime(df.index, unit='s',
+            df.index.name = ""
+            if str(df.index.dtype) == "float64":
+                df.index = pd.to_datetime(df.index, unit="s",
                                           infer_datetime_format=True)
             elif df.index.values[0] > 1e6:
                 df.index = pd.to_datetime(df.index,

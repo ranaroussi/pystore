@@ -80,7 +80,7 @@ def datetime_to_int64(df):
 def subdirs(d):
     """ use this to construct paths for future storage support """
     return [o.parts[-1] for o in Path(d).iterdir()
-            if o.is_dir() and o.parts[-1] != '_snapshots']
+            if o.is_dir() and o.parts[-1] != "_snapshots"]
 
 
 def path_exists(path):
@@ -99,9 +99,9 @@ def read_metadata(path):
 def write_metadata(path, metadata={}):
     """ use this to construct paths for future storage support """
     now = datetime.now()
-    metadata['_updated'] = now.strftime('%Y-%m-%d %H:%I:%S.%f')
-    meta_file = make_path(path, 'metadata.json')
-    with meta_file.open('w') as f:
+    metadata["_updated"] = now.strftime("%Y-%m-%d %H:%I:%S.%f")
+    meta_file = make_path(path, "metadata.json")
+    with meta_file.open("w") as f:
         json.dump(metadata, f, ensure_ascii=False)
 
 
@@ -120,7 +120,7 @@ def set_path(path):
         path = get_path()
 
     else:
-        path = path.rstrip('/').rstrip('\\').rstrip(' ')
+        path = path.rstrip("/").rstrip("\\").rstrip(" ")
         if "://" in path and "file://" not in path:
             raise ValueError(
                 "PyStore currently only works with local file system")

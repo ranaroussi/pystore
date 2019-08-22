@@ -33,7 +33,7 @@ DEFAULT_PARTITION_SIZE = 99e+6  # ~99MB
 
 class Collection(object):
     def __repr__(self):
-        return 'PyStore.collection <%s>' % self.collection
+        return "PyStore.collection <%s>" % self.collection
 
     def __init__(self, collection, datastore):
         self.datastore = datastore
@@ -60,7 +60,7 @@ class Collection(object):
         for d in dirs:
             meta = utils.read_metadata(utils.make_path(
                 self.datastore, self.collection, d))
-            del meta['_updated']
+            del meta["_updated"]
 
             m = 0
             keys = list(meta.keys())
@@ -85,7 +85,7 @@ class Collection(object):
             return data.index.compute()
 
         return float(str(data.index).split(
-                     '\nName')[0].split('\n')[-1].split(' ')[0])
+                     "\nName")[0].split("\n")[-1].split(" ")[0])
 
     def delete_item(self, item, reload_items=False):
         shutil.rmtree(self._item_path(item))
@@ -198,7 +198,7 @@ class Collection(object):
             snapshot = str(int(time.time() * 1000000))
 
         src = utils.make_path(self.datastore, self.collection)
-        dst = utils.make_path(src, '_snapshots', snapshot)
+        dst = utils.make_path(src, "_snapshots", snapshot)
 
         shutil.copytree(src, dst,
                         ignore=shutil.ignore_patterns("_snapshots"))
@@ -208,7 +208,7 @@ class Collection(object):
 
     def list_snapshots(self):
         snapshots = utils.subdirs(utils.make_path(
-            self.datastore, self.collection, '_snapshots'))
+            self.datastore, self.collection, "_snapshots"))
         return set(snapshots)
         # return [s.parts[-1] for s in snapshots]
 
@@ -218,13 +218,13 @@ class Collection(object):
             return True
 
         shutil.rmtree(utils.make_path(self.datastore, self.collection,
-                                      '_snapshots', snapshot))
+                                      "_snapshots", snapshot))
         self.snapshots = self.list_snapshots()
         return True
 
     def delete_snapshots(self):
         snapshots_path = utils.make_path(
-            self.datastore, self.collection, '_snapshots')
+            self.datastore, self.collection, "_snapshots")
         shutil.rmtree(snapshots_path)
         os.makedirs(snapshots_path)
         self.snapshots = self.list_snapshots()

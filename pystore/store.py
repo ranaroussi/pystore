@@ -27,7 +27,7 @@ from .collection import Collection
 
 class store(object):
     def __repr__(self):
-        return 'PyStore.datastore <%s>' % self.datastore
+        return "PyStore.datastore <%s>" % self.datastore
 
     def __init__(self, datastore):
 
@@ -52,7 +52,7 @@ class store(object):
                     "Collection exists! To overwrite, use `overwrite=True`")
 
         os.makedirs(collection_path)
-        os.makedirs(utils.make_path(collection_path, '_snapshots'))
+        os.makedirs(utils.make_path(collection_path, "_snapshots"))
 
         # update collections
         self.collections = self.list_collections()
