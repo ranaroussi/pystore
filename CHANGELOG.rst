@@ -3,9 +3,11 @@ Change Log
 
 0.1.13
 ------
-- `reload_items` defaults to `False`
+- `collection.reload_items` defaults to `False`
 - Default `npartitions` and `chunksize` are better optimized (~99MB/partition)
 - `collection.apply()` repartitions the dataframe based on new data size (~99MB/partition)
+- Option to specify the default engine for the store by specifying `engine="fastparquet"` or `engine="pyarrow"` (dafaults to `fastparquet`)
+- Solving `fastparquet`/`numba` issues when using Dask >= 2.2.0 by importing `numba` in `__init__.py`
 
 0.1.12
 ------
