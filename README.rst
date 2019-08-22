@@ -55,14 +55,13 @@ Install using `pip`:
 
 .. code:: bash
 
-    $ pip install PyStore
+    $ pip install pystore --upgrade --no-cache-dir
 
-Or upgrade using:
+Install using `conda`:
 
 .. code:: bash
 
-    $ pip install PyStore --upgrade --no-cache-dir
-
+    $ conda install -c ranaroussi pystore
 
 **INSTALLATION NOTE:**
 If you don't have Snappy installed (compression/decompression library), you'll need to
