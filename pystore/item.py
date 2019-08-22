@@ -29,7 +29,9 @@ class Item(object):
         return "PyStore.item <%s/%s>" % (self.collection, self.item)
 
     def __init__(self, item, datastore, collection,
-                 snapshot=None, filters=None, columns=None):
+                 snapshot=None, filters=None, columns=None,
+                 engine="fastparquet"):
+        self.engine = engine
         self.datastore = datastore
         self.collection = collection
         self.snapshot = snapshot
@@ -51,7 +53,7 @@ class Item(object):
 
         self.metadata = utils.read_metadata(self._path)
         self.data = dd.read_parquet(
-            self._path, engine='fastparquet', filters=filters, columns=columns)
+            self._path, engine=self.engine, filters=filters, columns=columns)
 
     def to_pandas(self, parse_dates=True):
         df = self.data.compute()

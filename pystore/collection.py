@@ -35,7 +35,8 @@ class Collection(object):
     def __repr__(self):
         return "PyStore.collection <%s>" % self.collection
 
-    def __init__(self, collection, datastore):
+    def __init__(self, collection, datastore, engine="fastparquet"):
+        self.engine = engine
         self.datastore = datastore
         self.collection = collection
         self.items = self.list_items()
@@ -75,12 +76,11 @@ class Collection(object):
 
     def item(self, item, snapshot=None, filters=None, columns=None):
         return Item(item, self.datastore, self.collection,
-                    snapshot, filters, columns)
+                    snapshot, filters, columns, engine=self.engine)
 
     def index(self, item, last=False):
         data = dd.read_parquet(self._item_path(item, as_string=True),
-                               columns='index',
-                               engine="fastparquet")
+                               columns="index", engine=self.engine)
         if not last:
             return data.index.compute()
 
