@@ -23,7 +23,6 @@ try:
     import numba as _
 except ImportError:
     pass
-""" --- """
 
 from .store import store
 from .utils import (
