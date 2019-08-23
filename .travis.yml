@@ -27,7 +27,6 @@ script:
 
 after_success:
   - coveralls
-  - codecov
 
 branches:
   only:
