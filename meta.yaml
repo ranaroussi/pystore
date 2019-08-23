@@ -1,0 +1,65 @@
+{% set name = "PyStore" %}
+{% set version = "0.1.13" %}
+
+package:
+  name: "{{ name|lower }}"
+  version: "{{ version }}"
+
+source:
+  url: "https://pypi.io/packages/source/{{ name[0] }}/{{ name }}/{{ name }}-{{ version }}.tar.gz"
+  sha256: "b8377062221c43861991531790d10a2422e0e4b642a10e6f69360d8ff57fd4d4"
+
+build:
+  noarch: python
+  number: 0
+  script: "{{ PYTHON }} -m pip install . --no-deps --ignore-installed -vv "
+
+requirements:
+  host:
+    - cloudpickle
+    - dask
+    - distributed
+    - fastparquet
+    - multitasking
+    - numpy
+    - pandas
+    - partd
+    - pip
+    - python
+    - python-snappy
+    - toolz
+  run:
+    - cloudpickle
+    - dask
+    - distributed
+    - fastparquet
+    - multitasking
+    - numpy
+    - pandas
+    - partd
+    - python
+    - python-snappy
+    - toolz
+
+test:
+  imports:
+    - pystore
+
+about:
+  home: "https://github.com/ranaroussi/pystore"
+  license: "Apache Software"
+  license_family: "APACHE"
+  license_file: ""
+  summary: "Fast data store for Pandas time-series data"
+  description: |
+    PyStore is a simple (yet powerful) datastore for Pandas dataframes,
+    and while it can store any Pandas object, it was designed with
+    storing timeseries data in mind.
+  doc_url: "https://github.com/ranaroussi/pystore"
+  dev_url: "https://pypi.python.org/pypi/PyStore"
+  doc_source_url: https://github.com/ranaroussi/pystore/blob/master/README.rst
+
+
+extra:
+  recipe-maintainers:
+    - ranaroussi
