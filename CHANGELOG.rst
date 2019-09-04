@@ -1,6 +1,10 @@
 Change Log
 ===========
 
+0.1.14
+------
+- Auto-detection and handling of nano-second based data
+
 0.1.13
 ------
 - `collection.reload_items` defaults to `False`
