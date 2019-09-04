@@ -122,6 +122,8 @@ class Collection(object):
 
         if epochdate or "datetime" in str(data.index.dtype):
             data = utils.datetime_to_int64(data)
+            if 1 in data.index.nanosecond and "times" not in kwargs:
+                kwargs["times"] = "int96"
 
         if data.index.name == "":
             data.index.name = "index"
