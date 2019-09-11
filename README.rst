@@ -17,6 +17,10 @@ PyStore - Fast data store for Pandas timeseries data
     :target: https://travis-ci.org/ranaroussi/pystore
     :alt: Travis-CI build status
 
+.. image:: https://www.codefactor.io/repository/github/ranaroussi/pystore/badge
+    :target: https://www.codefactor.io/repository/github/ranaroussi/pystore
+    :alt: CodeFactor
+
 .. image:: https://img.shields.io/github/stars/ranaroussi/pystore.svg?style=social&label=Star&maxAge=60
     :target: https://github.com/ranaroussi/pystore
     :alt: Star this repo
@@ -55,14 +59,13 @@ Install using `pip`:
 
 .. code:: bash
 
-    $ pip install PyStore
+    $ pip install pystore --upgrade --no-cache-dir
 
-Or upgrade using:
+Install using `conda`:
 
 .. code:: bash
 
-    $ pip install PyStore --upgrade --no-cache-dir
-
+    $ conda install -c ranaroussi pystore
 
 **INSTALLATION NOTE:**
 If you don't have Snappy installed (compression/decompression library), you'll need to

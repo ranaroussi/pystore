@@ -46,10 +46,10 @@ class Item(object):
 
             if not utils.path_exists(snap_path):
                 raise ValueError("Snapshot `%s` doesn't exist" % snapshot)
-            else:
-                if not utils.path_exists(self._path):
-                    raise ValueError(
-                        "Item `%s` doesn't exist in this snapshot" % item)
+
+            if not utils.path_exists(self._path):
+                raise ValueError(
+                    "Item `%s` doesn't exist in this snapshot" % item)
 
         self.metadata = utils.read_metadata(self._path)
         self.data = dd.read_parquet(

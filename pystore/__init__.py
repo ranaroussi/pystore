@@ -23,14 +23,13 @@ try:
     import numba as _
 except ImportError:
     pass
-""" --- """
 
 from .store import store
 from .utils import (
     read_csv, set_path, get_path,
     list_stores, delete_store, delete_stores)
 
-__version__ = "0.1.13"
+__version__ = "0.1.14"
 __author__ = "Ran Aroussi"
 
 __all__ = ["store", "read_csv", "get_path", "set_path",
