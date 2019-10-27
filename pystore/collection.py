@@ -165,7 +165,7 @@ class Collection(object):
                              any(data.index.nanosecond) > 0):
                 data = utils.datetime_to_int64(data)
             old_index = dd.read_parquet(self._item_path(item, as_string=True),
-                                        columns="index", engine=self.engine
+                                        columns=[], engine=self.engine
                                         ).index.compute()
             data = data[~data.index.isin(old_index)]
         except Exception:
