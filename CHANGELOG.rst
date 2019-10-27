@@ -1,6 +1,12 @@
 Change Log
 ===========
 
+0.1.15
+------
+- Fixed append issues
+- Raising an error when trying to read invalid item
+- Fixed path issued (removed unnecessary os.path.join calls)
+
 0.1.14
 ------
 - Auto-detection and handling of nano-second based data
