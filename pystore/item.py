@@ -38,6 +38,11 @@ class Item(object):
         self.item = item
 
         self._path = utils.make_path(datastore, collection, item)
+        if not self._path.exists():
+            raise ValueError(
+                "Item `%s` doesn't exist. "
+                "Create it using collection.write(`%s`, data, ...)" % (
+                    item, item))
         if snapshot:
             snap_path = utils.make_path(
                 datastore, collection, "_snapshots", snapshot)
