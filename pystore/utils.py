@@ -18,23 +18,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
 import os
-import shutil
 from datetime import datetime
-
-import numpy as np
+import json
+import shutil
 import pandas as pd
+import numpy as np
 from dask import dataframe as dd
-
-from . import config
 
 try:
     from pathlib import Path
-
     Path().expanduser()
 except (ImportError, AttributeError):
     from pathlib2 import Path
+
+from . import config
 
 
 def read_csv(urlpath, *args, **kwargs):
@@ -72,8 +70,8 @@ def datetime_to_int64(df):
     """
 
     if isinstance(df.index, dd.Index) and (
-        isinstance(df.index, pd.DatetimeIndex) and any(df.index.nanosecond) > 0
-    ):
+            isinstance(df.index, pd.DatetimeIndex) and
+            any(df.index.nanosecond) > 0):
         df.index = df.index.astype(np.int64)  # / 1e9
 
     return df
@@ -81,11 +79,8 @@ def datetime_to_int64(df):
 
 def subdirs(d):
     """ use this to construct paths for future storage support """
-    return [
-        o.parts[-1]
-        for o in Path(d).iterdir()
-        if o.is_dir() and o.parts[-1] != "_snapshots"
-    ]
+    return [o.parts[-1] for o in Path(d).iterdir()
+            if o.is_dir() and o.parts[-1] != "_snapshots"]
 
 
 def path_exists(path):
@@ -112,11 +107,13 @@ def write_metadata(path, metadata={}):
 
 def make_path(*args):
     """ use this to construct paths for future storage support """
+    # return Path(os.path.join(*args))
     return Path(*args)
 
 
 def get_path(*args):
     """ use this to construct paths for future storage support """
+    # return Path(os.path.join(config.DEFAULT_PATH, *args))
     return Path(config.DEFAULT_PATH, *args)
 
 
@@ -127,7 +124,8 @@ def set_path(path):
     else:
         path = path.rstrip("/").rstrip("\\").rstrip(" ")
         if "://" in path and "file://" not in path:
-            raise ValueError("PyStore currently only works with local file system")
+            raise ValueError(
+                "PyStore currently only works with local file system")
 
     config.DEFAULT_PATH = path
     path = get_path()
