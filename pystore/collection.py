@@ -172,22 +172,22 @@ class Collection(object):
             return
 
         if data.empty:
-            # if len(data.index) == 0:
             return
 
         if data.index.name == "":
             data.index.name = "index"
 
-        if npartitions is None:
-            memusage = data.memory_usage(deep=True).sum()
-            if isinstance(data, dd.DataFrame):
-                memusage = memusage.compute()
-            npartitions = int(1 + memusage // DEFAULT_PARTITION_SIZE)
-
         # combine old dataframe with new
         current = self.item(item)
         new = dd.from_pandas(data, npartitions=npartitions)
-        combined = current.data.append(new)
+        # combined = current.data.append(new)
+        combined = dd.concat([current.data, new]).drop_duplicates(keep="last")
+
+        if npartitions is None:
+            memusage = combined.memory_usage(deep=True).sum()
+            if isinstance(combined, dd.DataFrame):
+                memusage = memusage.compute()
+            npartitions = int(1 + memusage // DEFAULT_PARTITION_SIZE)
 
         # write data
         write = self.write_threaded if threaded else self.write
@@ -215,7 +215,6 @@ class Collection(object):
         snapshots = utils.subdirs(utils.make_path(
             self.datastore, self.collection, "_snapshots"))
         return set(snapshots)
-        # return [s.parts[-1] for s in snapshots]
 
     def delete_snapshot(self, snapshot):
         if snapshot not in self.snapshots:
