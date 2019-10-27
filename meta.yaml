@@ -1,5 +1,5 @@
 {% set name = "PyStore" %}
-{% set version = "0.1.14" %}
+{% set version = "0.1.15" %}
 
 package:
   name: "{{ name|lower }}"
@@ -7,7 +7,7 @@ package:
 
 source:
   url: "https://pypi.io/packages/source/{{ name[0] }}/{{ name }}/{{ name }}-{{ version }}.tar.gz"
-  sha256: "e4a4fe2cc5ae2714521091dd8d9ced2e3d601084e6567068056a72224271b138"
+  sha256: "ca1e8b2272ec540f3b0fb570ca5f7c52ce5928608a4bbf6c8aaa2630ec48bb17"
 
 build:
   noarch: python
