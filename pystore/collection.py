@@ -164,10 +164,10 @@ class Collection(object):
             if epochdate or ("datetime" in str(data.index.dtype) and
                              any(data.index.nanosecond) > 0):
                 data = utils.datetime_to_int64(data)
-            old_index = dd.read_parquet(self._item_path(item, as_string=True),
-                                        columns=[], engine=self.engine
-                                        ).index.compute()
-            data = data[~data.index.isin(old_index)]
+            # old_index = dd.read_parquet(self._item_path(item, as_string=True),
+            #                             columns=[], engine=self.engine
+            #                             ).index.compute()
+            # data = data[~data.index.isin(old_index)]
         except Exception:
             return
 
@@ -180,7 +180,7 @@ class Collection(object):
         # combine old dataframe with new
         current = self.item(item)
         new = dd.from_pandas(data, npartitions=1)
-        combined = dd.concat([current.data, new]).drop_duplicates(keep="last")
+        combined = dd.concat([current.data, new])#.drop_duplicates(keep="last")
 
         if npartitions is None:
             memusage = combined.memory_usage(deep=True).sum()

@@ -3,3 +3,9 @@ pystore/__pycache__/*
 dist
 PyStore.egg-info
 *.pyc
+build/lib/pystore/__init__.py
+build/lib/pystore/collection.py
+build/lib/pystore/config.py
+build/lib/pystore/item.py
+build/lib/pystore/store.py
+build/lib/pystore/utils.py
