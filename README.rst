@@ -12,7 +12,25 @@ PyStore - Fast data store for Pandas timeseries data
 .. image:: https://img.shields.io/pypi/status/pystore.svg?maxAge=60
     :target: https://pypi.python.org/pypi/pystore
     :alt: PyPi status
+
+.. image:: https://img.shields.io/travis/ranaroussi/pystore/master.svg?maxAge=1
+    :target: https://travis-ci.org/ranaroussi/pystore
+    :alt: Travis-CI build status
+
+.. image:: https://www.codefactor.io/repository/github/ranaroussi/pystore/badge
+    :target: https://www.codefactor.io/repository/github/ranaroussi/pystore
+    :alt: CodeFactor
+
+.. image:: https://img.shields.io/github/stars/ranaroussi/pystore.svg?style=social&label=Star&maxAge=60
+    :target: https://github.com/ranaroussi/pystore
+    :alt: Star this repo
+
+.. image:: https://img.shields.io/twitter/follow/aroussi.svg?style=social&label=Follow&maxAge=60
+    :target: https://twitter.com/aroussi
+    :alt: Follow me on twitter
+
 \
+
 
 `PyStore <https://github.com/ranaroussi/pystore>`_ is a simple (yet powerful)
 datastore for Pandas dataframes, and while it can store any Pandas object,
@@ -29,15 +47,6 @@ query millions of rows per second per client.
 for the reasoning and philosophy behind PyStore, as well as a detailed tutorial with code examples.
 
 ==> Follow `this PyStore tutorial <https://github.com/ranaroussi/pystore/blob/master/examples/pystore-tutorial.ipynb>`_ in Jupyter notebook format.
-
-WARNING
-=======
-
-This is a modified fork of the PyStore developed by Ran Aroussi. I had some issues with using PyStore
-in combination with recent versions of Dask. Furthermore the append function did not fullfill me needs.
-All the filtering of duplicates has been removed, since I don't need it and it is even in the way, because
-it filters stuff I want to keep in. use this fork if you're sure you need these modifications. Otherwise
-stick with the original...
 
 
 Quickstart
