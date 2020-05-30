@@ -171,7 +171,7 @@ A good practice it to create collections that may look something like this:
 Requirements
 ============
 
-* Python >= 3.5
+* Python > 3.5
 * Pandas
 * Numpy
 * Dask
