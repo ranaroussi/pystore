@@ -14,7 +14,7 @@ PyStore - Fast data store for Pandas timeseries data
     :alt: PyPi status
 
 .. image:: https://img.shields.io/travis/ranaroussi/pystore/master.svg?maxAge=1
-    :target: https://travis-ci.org/ranaroussi/pystore
+    :target: https://travis-ci.com/ranaroussi/pystore
     :alt: Travis-CI build status
 
 .. image:: https://www.codefactor.io/repository/github/ranaroussi/pystore/badge
