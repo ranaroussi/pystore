@@ -12,7 +12,7 @@ matrix:
 
 before_install:
   - sudo apt-get install libsnappy-dev zlib1g-dev libbz2-dev cmake-data cmake gcc libedit-dev -qq
-  - LLVM_CONFIG=/path/to/llvm-config pip3 install llvmlite
+  - LLVM_CONFIG=/path/to/llvm-config CXXFLAGS=-fPIC pip3 install llvmlite
 
 install:
   - if [[ $TRAVIS_PYTHON_VERSION != "2.7" ]]; then pip install 'fsspec>=0.3.3'; fi
