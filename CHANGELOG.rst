@@ -1,6 +1,14 @@
 Change Log
 ===========
 
+0.1.17
+------
+- Updated PyPi install script (lib is the same as 0.1.16)
+
+0.1.16
+------
+- Fixed `npartition=None` issues on `.append()`
+
 0.1.15
 ------
 - Fixed append issues
