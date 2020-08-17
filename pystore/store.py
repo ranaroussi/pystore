@@ -89,3 +89,13 @@ class store(object):
         # create it
         self._create_collection(collection, overwrite)
         return Collection(collection, self.datastore, self.engine)
+    
+    def item(self, item_path):
+        # bypasses collection
+        if not os.path.exists(item_path):
+            raise ValueError("Item path `%s` does not exist" % item_path)
+        item_path = item_path.split("\\")
+        return self.collection(item_path[-2]).item(item_path[-1])
+        
+        
+        
