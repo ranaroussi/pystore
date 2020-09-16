@@ -89,3 +89,10 @@ class store(object):
         # create it
         self._create_collection(collection, overwrite)
         return Collection(collection, self.datastore, self.engine)
+    
+    def item(self, collection, item):
+        # bypasses collection
+        return self.collection(collection).item(item)
+        
+        
+        
