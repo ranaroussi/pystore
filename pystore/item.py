@@ -4,7 +4,7 @@
 # PyStore: Flat-file datastore for timeseries data
 # https://github.com/ranaroussi/pystore
 #
-# Copyright 2018-2019 Ran Aroussi
+# Copyright 2018-2020 Ran Aroussi
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.

@@ -4,7 +4,7 @@
 # PyStore: Flat-file datastore for timeseries data
 # https://github.com/ranaroussi/pystore
 #
-# Copyright 2018-2019 Ran Aroussi
+# Copyright 2018-2020 Ran Aroussi
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -29,7 +29,7 @@ from .utils import (
     read_csv, set_path, get_path,
     list_stores, delete_store, delete_stores)
 
-__version__ = "0.1.17"
+__version__ = "0.1.18"
 __author__ = "Ran Aroussi"
 
 __all__ = ["store", "read_csv", "get_path", "set_path",

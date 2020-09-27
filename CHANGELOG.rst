@@ -1,6 +1,12 @@
 Change Log
 ===========
 
+0.1.18
+------
+- Added support for `dask.distributed` via `pystore.set_client(...)`
+- Added `store.item(...)` for accessing single collection item directly (pull request #44)
+- Added `store.set_partition_size(...)` and `store.get_partition_size()`. Default is ~99MB.
+
 0.1.17
 ------
 - Updated PyPi install script (lib is the same as 0.1.16)
@@ -50,7 +56,7 @@ Change Log
 
 0.1.8
 ------
-- Added `pystore.read-csv()` to quickly read dask dataframe, ready for storage
+- Added `pystore.read-csv()` to quickly load csv as dask dataframe, ready for storage
 
 0.1.7
 ------

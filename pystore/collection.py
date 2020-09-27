@@ -4,7 +4,7 @@
 # PyStore: Flat-file datastore for timeseries data
 # https://github.com/ranaroussi/pystore
 #
-# Copyright 2018-2019 Ran Aroussi
+# Copyright 2018-2020 Ran Aroussi
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -26,9 +26,7 @@ import multitasking
 
 from . import utils
 from .item import Item
-
-
-DEFAULT_PARTITION_SIZE = 99e+6  # ~99MB
+from . import config
 
 
 class Collection(object):
@@ -132,11 +130,11 @@ class Collection(object):
             memusage = data.memory_usage(deep=True).sum()
             if isinstance(data, dd.DataFrame):
                 npartitions = int(
-                    1 + memusage.compute() // DEFAULT_PARTITION_SIZE)
+                    1 + memusage.compute() // config.PARTITION_SIZE)
                 data.repartition(npartitions=npartitions)
             else:
                 npartitions = int(
-                    1 + memusage // DEFAULT_PARTITION_SIZE)
+                    1 + memusage // config.PARTITION_SIZE)
                 data = dd.from_pandas(data, npartitions=npartitions)
 
         dd.to_parquet(data, self._item_path(item, as_string=True),
@@ -186,7 +184,7 @@ class Collection(object):
             memusage = combined.memory_usage(deep=True).sum()
             if isinstance(combined, dd.DataFrame):
                 memusage = memusage.compute()
-            npartitions = int(1 + memusage // DEFAULT_PARTITION_SIZE)
+            npartitions = int(1 + memusage // config.PARTITION_SIZE)
 
         # write data
         write = self.write_threaded if threaded else self.write
