@@ -1,6 +1,18 @@
 Change Log
 ===========
 
+0.1.21
+------
+- Updated PyPi install script (lib is the same as 0.1.20)
+
+0.1.20
+------
+- Fix: Resetting `config._CLIENT` to `None`
+
+0.1.19
+------
+- Fixed: Exposed set/get_partition_size and set/get_clients
+
 0.1.18
 ------
 - Added support for `dask.distributed` via `pystore.set_client(...)`

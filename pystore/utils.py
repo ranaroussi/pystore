@@ -159,11 +159,12 @@ def set_client(scheduler=None):
     if scheduler != config._SCHEDULER and config._CLIENT is not None:
         try:
             config._CLIENT.shutdown()
+            config._CLIENT = None
         except Exception:
             pass
 
+    config._SCHEDULER = scheduler
     if scheduler is not None:
-        config._SCHEDULER = scheduler
         config._CLIENT = Client(scheduler)
 
     return config._CLIENT
