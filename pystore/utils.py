@@ -25,6 +25,8 @@ import shutil
 import pandas as pd
 import numpy as np
 from dask import dataframe as dd
+from dask.distributed import Client
+
 
 try:
     from pathlib import Path
@@ -151,6 +153,25 @@ def delete_store(store):
 def delete_stores():
     shutil.rmtree(get_path())
     return True
+
+
+def set_client(scheduler=None):
+    if scheduler != config._SCHEDULER and config._CLIENT is not None:
+        try:
+            config._CLIENT.shutdown()
+        except Exception:
+            pass
+
+    if scheduler is not None:
+        config._SCHEDULER = scheduler
+        config._CLIENT = Client(scheduler)
+
+    return config._CLIENT
+
+
+def get_client():
+    return config._CLIENT
+
 
 def set_partition_size(size=None):
     if size is None:

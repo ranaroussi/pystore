@@ -23,3 +23,7 @@ from os.path import expanduser as _expanduser
 DEFAULT_PATH = _expanduser("~/pystore")
 DEFAULT_PARTITION_SIZE = 99e+6  # ~99MB
 PARTITION_SIZE = 99e+6  # ~99MB
+
+# dask distributed
+_SCHEDULER = None
+_CLIENT = None
