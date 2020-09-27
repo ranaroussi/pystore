@@ -1,6 +1,10 @@
 Change Log
 ===========
 
+0.1.22
+------
+- Uses `PYSTORE_PATH` environment variable, if it exists, as the path when not calling `store.set_path()` (defaults to `~/pystore`)
+
 0.1.21
 ------
 - Updated PyPi install script (lib is the same as 0.1.20)
