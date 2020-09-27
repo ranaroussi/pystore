@@ -91,5 +91,5 @@ class store(object):
         return Collection(collection, self.datastore, self.engine)
 
     def item(self, collection, item):
-        # get an item directly from collection
+        # bypasses collection
         return self.collection(collection).item(item)
