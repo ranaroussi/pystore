@@ -83,7 +83,8 @@ Using PyStore
     import pystore
     import quandl
 
-    # Set storage path (optional, default is `~/pystore`)
+    # Set storage path (optional)
+    # Defaults to `~/pystore` or `PYSTORE_PATH` environment variable (if set)
     pystore.set_path("~/pystore")
 
     # List stores

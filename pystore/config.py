@@ -18,9 +18,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from os.path import expanduser as _expanduser
+import os as os
+from .utils import Path
 
-DEFAULT_PATH = _expanduser("~/pystore")
+DEFAULT_PATH = os.environ.get("PYSTORE_PATH", Path.home() / "pystore")
 DEFAULT_PARTITION_SIZE = 99e+6  # ~99MB
 PARTITION_SIZE = 99e+6  # ~99MB
 
