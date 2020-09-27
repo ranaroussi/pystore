@@ -27,10 +27,14 @@ except ImportError:
 from .store import store
 from .utils import (
     read_csv, set_path, get_path,
+    set_client, get_client,
+    set_partition_size, get_partition_size,
     list_stores, delete_store, delete_stores)
 
-__version__ = "0.1.18"
+__version__ = "0.1.21"
 __author__ = "Ran Aroussi"
 
 __all__ = ["store", "read_csv", "get_path", "set_path",
+           "set_client", "get_client",
+           "set_partition_size", "get_partition_size",
            "list_stores", "delete_store", "delete_stores"]
