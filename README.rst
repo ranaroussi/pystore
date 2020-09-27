@@ -155,6 +155,28 @@ Using PyStore
     store.delete_collection('NASDAQ')
 
 
+Using Dask schedulers
+---------------------
+
+PyStore 0.1.18+ supports using Dask distributed.
+
+To use a local Dask scheduler, add this to your code:
+
+.. code:: python
+
+    from dask.distributed import LocalCluster
+    pystore.set_client(LocalCluster())
+
+
+To use a distributed Dask scheduler, add this to your code:
+
+.. code:: python
+
+    pystore.set_client("tcp://xxx.xxx.xxx.xxx:xxxx")
+    pystore.set_path("/path/to/shared/volume/all/workers/can/access")
+
+
+
 Concepts
 ========
 
@@ -171,7 +193,7 @@ A good practice it to create collections that may look something like this:
 Requirements
 ============
 
-* Python > 3.5
+* Python 2.7 or Python > 3.5
 * Pandas
 * Numpy
 * Dask
@@ -225,7 +247,7 @@ Windows users should checkout `Snappy for Windows <https://snappy.machinezoo.com
 Roadmap
 =======
 
-PyStore currently offers support for local filesystem.
+PyStore currently offers support for local filesystem (including attached network drives).
 I plan on adding support for Amazon S3 (via `s3fs <http://s3fs.readthedocs.io/>`_),
 Google Cloud Storage (via `gcsfs <https://github.com/dask/gcsfs/>`_)
 and Hadoop Distributed File System (via `hdfs3 <http://hdfs3.readthedocs.io/>`_) in the future.
