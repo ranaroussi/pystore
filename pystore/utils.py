@@ -151,3 +151,13 @@ def delete_store(store):
 def delete_stores():
     shutil.rmtree(get_path())
     return True
+
+def set_partition_size(size=None):
+    if size is None:
+        size = config.DEFAULT_PARTITION_SIZE * 1
+    config.PARTITION_SIZE = size
+    return config.PARTITION_SIZE
+
+
+def get_partition_size():
+    return config.PARTITION_SIZE
