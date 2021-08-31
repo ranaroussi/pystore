@@ -219,31 +219,24 @@ class Collection(object):
 
         # combine old dataframe with new and optionally remove duplicates from 
         # combined dataframe
-        idx_name = combined.index.name
+        idx_name = data.index.name
         if remove_duplicates is None:
-            # drops no duplicates
             combined = dd.concat([current.data, new])
         elif remove_duplicates == 'index':
-            # drops all rows with duplicated indices (except the last one)
-            # ignores the values
             combined = dd.concat([current.data, new])\
                 .reset_index()\
                 .drop_duplicates(subset=idx_name, keep="last")\
                 .set_index(idx_name)
         elif remove_duplicates == 'values':
-            # drops only rows with duplicated column values. Ignores the index
             combined = dd.concat([current.data, new])\
                 .drop_duplicates(keep="last")
         elif remove_duplicates == 'all':
-            # drops rows with duplicated indices first then drops duplicated 
-            # column values
             combined = dd.concat([current.data, new])\
                 .reset_index()\
                 .drop_duplicates(subset=idx_name, keep="last")\
                 .set_index(idx_name)\
                 .drop_duplicates(keep="last")
         elif remove_duplicates == 'values_in_index':
-            # drops all rows with duplicated values within an duplicated index
             combined = dd.concat([current.data, new])\
                 .reset_index()\
                 .drop_duplicates(keep="last")\
