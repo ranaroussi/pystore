@@ -1,6 +1,11 @@
 Change Log
 ===========
 
+0.1.23
+------
+- Fixed deprecate 'in' operator to be compatible with pandas 1.2.0 onwards (PR #58)
+- Add argument to `append()` to control duplicates (PR #57)
+
 0.1.22
 ------
 - Uses `PYSTORE_PATH` environment variable, if it exists, as the path when not calling `store.set_path()` (defaults to `~/pystore`)
