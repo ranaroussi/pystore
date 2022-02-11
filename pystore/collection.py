@@ -149,8 +149,46 @@ class Collection(object):
             self._list_items_threaded()
 
     def append(self, item, data, npartitions=None, epochdate=False,
-               threaded=False, reload_items=False, **kwargs):
+               threaded=False, reload_items=False, remove_duplicates=None,
+               **kwargs):
+        """Append new data to the collection.
 
+        Saves new data to the collection and optionially removes duplicates
+        within the data.
+
+        Parameters
+        ----------
+        item
+        data
+        npartitions
+        epochdate
+        threaded
+        reload_items
+        remove_duplicates : str, optional (default=None)
+            Defines how duplicates within the combined dataframe will be
+                handled.
+            None = no check for duplicated data. This is the fastest option
+                but the user is responsible for not having an overlap
+                between the new and old data
+            "index" = For data with unique index but non unique row values.
+                Rows with duplicated indices will be deleted. Ignores the
+                values
+            "values" = For data with non unique index but unique row values.
+                Rows with duplicated values will be deleted. Ignores the index
+            "all" = For data with unique index and unique row values. Rows
+                with duplicated indices will be deleted first and then all
+                rows with duplicated values will be deleted
+            "values_in_index" = For data with non unique index but unique row
+                values within index duplicates. Rows with duplicated values
+                within the same index will be deleted
+
+        kwargs
+
+        Returns
+        -------
+
+        """
+        
         if not utils.path_exists(self._item_path(item)):
             raise ValueError(
                 """Item do not exists. Use `<collection>.write(...)`""")
@@ -175,11 +213,39 @@ class Collection(object):
         if data.index.name == "":
             data.index.name = "index"
 
-        # combine old dataframe with new
+        # get old and new dataframe
         current = self.item(item)
         new = dd.from_pandas(data, npartitions=1)
-        combined = dd.concat([current.data, new]).drop_duplicates(keep="last")
 
+        # combine old dataframe with new and optionally remove duplicates from 
+        # combined dataframe
+        idx_name = data.index.name
+        if remove_duplicates is None:
+            combined = dd.concat([current.data, new])
+        elif remove_duplicates == 'index':
+            combined = dd.concat([current.data, new])\
+                .reset_index()\
+                .drop_duplicates(subset=idx_name, keep="last")\
+                .set_index(idx_name)
+        elif remove_duplicates == 'values':
+            combined = dd.concat([current.data, new])\
+                .drop_duplicates(keep="last")
+        elif remove_duplicates == 'all':
+            combined = dd.concat([current.data, new])\
+                .reset_index()\
+                .drop_duplicates(subset=idx_name, keep="last")\
+                .set_index(idx_name)\
+                .drop_duplicates(keep="last")
+        elif remove_duplicates == 'values_in_index':
+            combined = dd.concat([current.data, new])\
+                .reset_index()\
+                .drop_duplicates(keep="last")\
+                .set_index(idx_name)
+        else:
+            raise ValueError(
+                """argument remove_duplicates must either be None, 'index', 
+                'values', 'all' or 'values_in_index'""")     
+        
         if npartitions is None:
             memusage = combined.memory_usage(deep=True).sum()
             if isinstance(combined, dd.DataFrame):
