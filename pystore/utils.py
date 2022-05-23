@@ -30,6 +30,7 @@ from dask.distributed import Client
 
 try:
     from pathlib import Path
+
     Path().expanduser()
 except (ImportError, AttributeError):
     from pathlib2 import Path
@@ -67,55 +68,56 @@ def read_csv(urlpath, *args, **kwargs):
 
 
 def datetime_to_int64(df):
-    """ convert datetime index to epoch int
+    """convert datetime index to epoch int
     allows for cross language/platform portability
     """
 
     if isinstance(df.index, dd.Index) and (
-            isinstance(df.index, pd.DatetimeIndex) and
-            any(df.index.nanosecond) > 0):
+        isinstance(df.index, pd.DatetimeIndex) and any(df.index.nanosecond) > 0
+    ):
         df.index = df.index.astype(np.int64)  # / 1e9
 
     return df
 
 
 def subdirs(d):
-    """ use this to construct paths for future storage support """
-    return [o.parts[-1] for o in Path(d).iterdir()
-            if o.is_dir() and o.parts[-1] != "_snapshots"]
+    """use this to construct paths for future storage support"""
+    return [
+        o.parts[-1]
+        for o in Path(d).iterdir()
+        if o.is_dir() and o.parts[-1] != "_snapshots"
+    ]
 
 
 def path_exists(path):
-    """ use this to construct paths for future storage support """
+    """use this to construct paths for future storage support"""
     return path.exists()
 
 
 def read_metadata(path):
-    """ use this to construct paths for future storage support """
+    """use this to construct paths for future storage support"""
     dest = make_path(path, "metadata.json")
     if path_exists(dest):
         with dest.open() as f:
             return json.load(f)
 
 
-def write_metadata(path, metadata={}):
-    """ use this to construct paths for future storage support """
+def write_metadata(path: Path, metadata: dict = None):
+    """use this to construct paths for future storage support"""
+    metadata = metadata or {}
     now = datetime.now()
     metadata["_updated"] = now.strftime("%Y-%m-%d %H:%I:%S.%f")
-    meta_file = make_path(path, "metadata.json")
-    with meta_file.open("w") as f:
+    with path.open(mode="w") as f:
         json.dump(metadata, f, ensure_ascii=False)
 
 
 def make_path(*args):
-    """ use this to construct paths for future storage support """
-    # return Path(os.path.join(*args))
+    """use this to construct paths for future storage support"""
     return Path(*args)
 
 
 def get_path(*args):
-    """ use this to construct paths for future storage support """
-    # return Path(os.path.join(config.DEFAULT_PATH, *args))
+    """use this to construct paths for future storage support"""
     return Path(config.DEFAULT_PATH, *args)
 
 
@@ -126,8 +128,7 @@ def set_path(path):
     else:
         path = path.rstrip("/").rstrip("\\").rstrip(" ")
         if "://" in path and "file://" not in path:
-            raise ValueError(
-                "PyStore currently only works with local file system")
+            raise ValueError("PyStore currently only works with local file system")
 
     config.DEFAULT_PATH = path
     path = get_path()

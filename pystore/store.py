@@ -59,7 +59,8 @@ class store(object):
                 self.delete_collection(collection)
             else:
                 raise ValueError(
-                    "Collection exists! To overwrite, use `overwrite=True`")
+                    "Collection exists! To overwrite, use `overwrite=True`"
+                )
 
         os.makedirs(collection_path)
         os.makedirs(utils.make_path(collection_path, "_snapshots"))

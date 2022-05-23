@@ -18,15 +18,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import Union
+
 import os
 import time
 import shutil
-import dask.dataframe as dd
 import multitasking
+import pandas as pd
 
 from . import utils
 from .item import Item
 from . import config
+from .utils import make_path
+
+Tensor = Union[pd.Series, pd.DataFrame]
 
 
 class Collection(object):
@@ -37,7 +42,6 @@ class Collection(object):
         self.engine = engine
         self.datastore = datastore
         self.collection = collection
-        self.items = self.list_items()
         self.snapshots = self.list_snapshots()
 
     def _item_path(self, item, as_string=False):
@@ -46,10 +50,6 @@ class Collection(object):
             return str(p)
         return p
 
-    @multitasking.task
-    def _list_items_threaded(self, **kwargs):
-        self.items = self.list_items(**kwargs)
-
     def list_items(self, **kwargs):
         dirs = utils.subdirs(utils.make_path(self.datastore, self.collection))
         if not kwargs:
@@ -57,8 +57,9 @@ class Collection(object):
 
         matched = []
         for d in dirs:
-            meta = utils.read_metadata(utils.make_path(
-                self.datastore, self.collection, d))
+            meta = utils.read_metadata(
+                utils.make_path(self.datastore, self.collection, d)
+            )
             del meta["_updated"]
 
             m = 0
@@ -72,160 +73,91 @@ class Collection(object):
 
         return set(matched)
 
-    def item(self, item, snapshot=None, filters=None, columns=None):
-        return Item(item, self.datastore, self.collection,
-                    snapshot, filters, columns, engine=self.engine)
+    def item(self, item, snapshot=None, filters=None):
+        return Item(
+            item, self.datastore, self.collection, snapshot, filters, engine=self.engine
+        )
 
-    def index(self, item, last=False):
-        data = dd.read_parquet(self._item_path(item, as_string=True),
-                               columns="index", engine=self.engine)
-        if not last:
-            return data.index.compute()
+    def write(
+        self,
+        item,
+        data: Tensor,
+        metadata: dict = None,
+        overwrite: bool = False,
+    ):
 
-        return float(str(data.index).split(
-                     "\nName")[0].split("\n")[-1].split(" ")[0])
-
-    def delete_item(self, item, reload_items=False):
-        shutil.rmtree(self._item_path(item))
-        self.items.remove(item)
-        if reload_items:
-            self.items = self._list_items_threaded()
-        return True
-
-    @multitasking.task
-    def write_threaded(self, item, data, metadata={},
-                       npartitions=None, chunksize=None,
-                       overwrite=False, epochdate=False,
-                       reload_items=False, **kwargs):
-        return self.write(item, data, metadata,
-                          npartitions, chunksize, overwrite,
-                          epochdate, reload_items,
-                          **kwargs)
-
-    def write(self, item, data, metadata={},
-              npartitions=None, chunksize=None, overwrite=False,
-              epochdate=False, reload_items=False,
-              **kwargs):
+        metadata = metadata or {}
 
         if utils.path_exists(self._item_path(item)) and not overwrite:
-            raise ValueError("""
+            raise ValueError(
+                """
                 Item already exists. To overwrite, use `overwrite=True`.
-                Otherwise, use `<collection>.append()`""")
+                Otherwise, use `<collection>.append()`"""
+            )
 
-        if isinstance(data, Item):
-            data = data.to_pandas()
-        else:
-            # work on copy
-            data = data.copy()
+        data_path = make_path(item, "data.parquet")
+        data.to_parquet(
+            self._item_path(data_path, as_string=True),
+            compression="snappy",
+            engine=self.engine,
+        )
 
-        if epochdate or "datetime" in str(data.index.dtype):
-            data = utils.datetime_to_int64(data)
-            if (1 == data.index.nanosecond).any() and "times" not in kwargs:
-                kwargs["times"] = "int96"
+        metadata_path = make_path(item, "metadata.json")
+        utils.write_metadata(
+            utils.make_path(self.datastore, self.collection, metadata_path), metadata
+        )
 
-        if data.index.name == "":
-            data.index.name = "index"
-
-        if npartitions is None and chunksize is None:
-            memusage = data.memory_usage(deep=True).sum()
-            if isinstance(data, dd.DataFrame):
-                npartitions = int(
-                    1 + memusage.compute() // config.PARTITION_SIZE)
-                data.repartition(npartitions=npartitions)
-            else:
-                npartitions = int(
-                    1 + memusage // config.PARTITION_SIZE)
-                data = dd.from_pandas(data, npartitions=npartitions)
-
-        dd.to_parquet(data, self._item_path(item, as_string=True),
-                      compression="snappy", engine=self.engine, **kwargs)
-
-        utils.write_metadata(utils.make_path(
-            self.datastore, self.collection, item), metadata)
-
-        # update items
-        self.items.add(item)
-        if reload_items:
-            self._list_items_threaded()
-
-    def append(self, item, data, npartitions=None, epochdate=False,
-               threaded=False, reload_items=False, **kwargs):
+    def append(self, item, data):
 
         if not utils.path_exists(self._item_path(item)):
-            raise ValueError(
-                """Item do not exists. Use `<collection>.write(...)`""")
+            raise ValueError("""Item do not exists. Use `<collection>.write(...)`""")
 
-        # work on copy
-        data = data.copy()
+        current = pd.read_parquet(
+            self._item_path(item, as_string=True), engine=self.engine
+        )
+        combined = current.append(data)
 
-        try:
-            if epochdate or ("datetime" in str(data.index.dtype) and
-                             any(data.index.nanosecond) > 0):
-                data = utils.datetime_to_int64(data)
-            old_index = dd.read_parquet(self._item_path(item, as_string=True),
-                                        columns=[], engine=self.engine
-                                        ).index.compute()
-            data = data[~data.index.isin(old_index)]
-        except Exception:
-            return
-
-        if data.empty:
-            return
-
-        if data.index.name == "":
-            data.index.name = "index"
-
-        # combine old dataframe with new
         current = self.item(item)
-        new = dd.from_pandas(data, npartitions=1)
-        combined = dd.concat([current.data, new]).drop_duplicates(keep="last")
 
-        if npartitions is None:
-            memusage = combined.memory_usage(deep=True).sum()
-            if isinstance(combined, dd.DataFrame):
-                memusage = memusage.compute()
-            npartitions = int(1 + memusage // config.PARTITION_SIZE)
-
-        # write data
-        write = self.write_threaded if threaded else self.write
-        write(item, combined, npartitions=npartitions, chunksize=None,
-              metadata=current.metadata, overwrite=True,
-              epochdate=epochdate, reload_items=reload_items, **kwargs)
+        self.write(
+            item,
+            combined,
+            metadata=current.metadata,
+            overwrite=True,
+        )
 
     def create_snapshot(self, snapshot=None):
         if snapshot:
-            snapshot = "".join(
-                e for e in snapshot if e.isalnum() or e in [".", "_"])
+            snapshot = "".join(e for e in snapshot if e.isalnum() or e in [".", "_"])
         else:
             snapshot = str(int(time.time() * 1000000))
 
         src = utils.make_path(self.datastore, self.collection)
         dst = utils.make_path(src, "_snapshots", snapshot)
 
-        shutil.copytree(src, dst,
-                        ignore=shutil.ignore_patterns("_snapshots"))
+        shutil.copytree(src, dst, ignore=shutil.ignore_patterns("_snapshots"))
 
         self.snapshots = self.list_snapshots()
         return True
 
     def list_snapshots(self):
-        snapshots = utils.subdirs(utils.make_path(
-            self.datastore, self.collection, "_snapshots"))
+        snapshots = utils.subdirs(
+            utils.make_path(self.datastore, self.collection, "_snapshots")
+        )
         return set(snapshots)
 
     def delete_snapshot(self, snapshot):
         if snapshot not in self.snapshots:
-            # raise ValueError("Snapshot `%s` doesn't exist" % snapshot)
             return True
 
-        shutil.rmtree(utils.make_path(self.datastore, self.collection,
-                                      "_snapshots", snapshot))
+        shutil.rmtree(
+            utils.make_path(self.datastore, self.collection, "_snapshots", snapshot)
+        )
         self.snapshots = self.list_snapshots()
         return True
 
     def delete_snapshots(self):
-        snapshots_path = utils.make_path(
-            self.datastore, self.collection, "_snapshots")
+        snapshots_path = utils.make_path(self.datastore, self.collection, "_snapshots")
         shutil.rmtree(snapshots_path)
         os.makedirs(snapshots_path)
         self.snapshots = self.list_snapshots()

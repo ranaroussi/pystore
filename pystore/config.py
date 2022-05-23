@@ -22,8 +22,8 @@ import os as os
 from .utils import Path
 
 DEFAULT_PATH = os.environ.get("PYSTORE_PATH", Path.home() / "pystore")
-DEFAULT_PARTITION_SIZE = 99e+6  # ~99MB
-PARTITION_SIZE = 99e+6  # ~99MB
+DEFAULT_PARTITION_SIZE = 99e6  # ~99MB
+PARTITION_SIZE = 99e6  # ~99MB
 
 # dask distributed
 _SCHEDULER = None
