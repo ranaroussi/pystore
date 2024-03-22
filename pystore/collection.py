@@ -33,7 +33,7 @@ class Collection(object):
     def __repr__(self):
         return "PyStore.collection <%s>" % self.collection
 
-    def __init__(self, collection, datastore, engine="fastparquet"):
+    def __init__(self, collection, datastore, engine="pyarrow"):
         self.engine = engine
         self.datastore = datastore
         self.collection = collection

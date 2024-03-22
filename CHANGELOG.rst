@@ -1,6 +1,10 @@
 Change Log
 ===========
 
+0.1.24
+------
+- Replace default parquet engine, deprecate Fastparquet, start using as default pyarrow
+
 0.1.23
 ------
 - Fixed deprecate 'in' operator to be compatible with pandas 1.2.0 onwards (PR #58)

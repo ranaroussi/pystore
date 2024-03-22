@@ -29,7 +29,7 @@ class store(object):
     def __repr__(self):
         return "PyStore.datastore <%s>" % self.datastore
 
-    def __init__(self, datastore, engine="fastparquet"):
+    def __init__(self, datastore, engine="pyarrow"):
 
         datastore_path = utils.get_path()
         if not utils.path_exists(datastore_path):
@@ -46,7 +46,7 @@ class store(object):
                 self.engine = metadata["engine"]
             else:
                 # default / backward compatibility
-                self.engine = "fastparquet"
+                self.engine = "pyarrow"
                 utils.write_metadata(self.datastore, {"engine": self.engine})
 
         self.collections = self.list_collections()
