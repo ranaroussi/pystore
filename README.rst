@@ -38,7 +38,7 @@ datastore for Pandas dataframes, and while it can store any Pandas object,
 
 It's built on top of `Pandas <http://pandas.pydata.org>`_, `Numpy <http://numpy.pydata.org>`_,
 `Dask <http://dask.pydata.org>`_, and `Parquet <http://parquet.apache.org>`_
-(via `Fastparquet <https://github.com/dask/fastparquet>`_),
+(via `pyarrow <https://github.com/apache/arrow>`_),
 to provide an easy to use datastore for Python developers that can easily
 query millions of rows per second per client.
 
@@ -198,7 +198,7 @@ Requirements
 * Pandas
 * Numpy
 * Dask
-* Fastparquet
+* Pyarrow
 * `Snappy <http://google.github.io/snappy/>`_ (Google's compression/decompression library)
 * multitasking
 
