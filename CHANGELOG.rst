@@ -7,6 +7,7 @@ Change Log
 - Remove "chunksize" from `collection.py` as it's not used by dask nor pyarrow.
 - Solve issue #69
 - Fix collection.write by passing overwrite parameter.
+- rename metadata.json to pystore_metadata.json, to avoid conflicts with pyarrow
 
 0.1.23
 ------
