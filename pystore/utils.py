@@ -92,17 +92,19 @@ def path_exists(path):
 
 def read_metadata(path):
     """ use this to construct paths for future storage support """
-    dest = make_path(path, "metadata.json")
+    dest = make_path(path, "pystore_metadata.json")
     if path_exists(dest):
         with dest.open() as f:
             return json.load(f)
+    else:
+        return {}
 
 
 def write_metadata(path, metadata={}):
     """ use this to construct paths for future storage support """
     now = datetime.now()
     metadata["_updated"] = now.strftime("%Y-%m-%d %H:%I:%S.%f")
-    meta_file = make_path(path, "metadata.json")
+    meta_file = make_path(path, "pystore_metadata.json")
     with meta_file.open("w") as f:
         json.dump(metadata, f, ensure_ascii=False)
 

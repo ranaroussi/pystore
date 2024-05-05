@@ -94,16 +94,16 @@ class Collection(object):
 
     @multitasking.task
     def write_threaded(self, item, data, metadata={},
-                       npartitions=None, chunksize=None,
+                       npartitions=None,
                        overwrite=False, epochdate=False,
                        reload_items=False, **kwargs):
         return self.write(item, data, metadata,
-                          npartitions, chunksize, overwrite,
+                          npartitions, overwrite,
                           epochdate, reload_items,
                           **kwargs)
 
     def write(self, item, data, metadata={},
-              npartitions=None, chunksize=None, overwrite=False,
+              npartitions=None, overwrite=False,
               epochdate=False, reload_items=False,
               **kwargs):
 
@@ -126,18 +126,21 @@ class Collection(object):
         if data.index.name == "":
             data.index.name = "index"
 
-        if npartitions is None and chunksize is None:
+        if npartitions is None:
             memusage = data.memory_usage(deep=True).sum()
             if isinstance(data, dd.DataFrame):
                 npartitions = int(
                     1 + memusage.compute() // config.PARTITION_SIZE)
-                data.repartition(npartitions=npartitions)
+                data = data.repartition(npartitions=npartitions)
             else:
                 npartitions = int(
                     1 + memusage // config.PARTITION_SIZE)
                 data = dd.from_pandas(data, npartitions=npartitions)
+        else:
+            if not isinstance(data, dd.DataFrame):
+                data = dd.from_pandas(data, npartitions=npartitions)
 
-        dd.to_parquet(data, self._item_path(item, as_string=True),
+        dd.to_parquet(data, self._item_path(item, as_string=True), overwrite=overwrite,
                       compression="snappy", engine=self.engine, **kwargs)
 
         utils.write_metadata(utils.make_path(
@@ -178,7 +181,7 @@ class Collection(object):
         # combine old dataframe with new
         current = self.item(item)
         new = dd.from_pandas(data, npartitions=1)
-        combined = dd.concat([current.data, new]).drop_duplicates(keep="last")
+        combined = dd.concat([current.data, new])
 
         if npartitions is None:
             memusage = combined.memory_usage(deep=True).sum()
@@ -186,11 +189,22 @@ class Collection(object):
                 memusage = memusage.compute()
             npartitions = int(1 + memusage // config.PARTITION_SIZE)
 
+        combined = combined.repartition(npartitions=npartitions).drop_duplicates(
+            keep="last"
+            )
+        tmp_item = "__" + item
         # write data
         write = self.write_threaded if threaded else self.write
-        write(item, combined, npartitions=npartitions, chunksize=None,
-              metadata=current.metadata, overwrite=True,
+        write(tmp_item, combined, npartitions=npartitions,
+              metadata=current.metadata, overwrite=False,
               epochdate=epochdate, reload_items=reload_items, **kwargs)
+
+        try:
+            self.delete_item(item=item,reload_items=False)
+            shutil.move(self._item_path(tmp_item),self._item_path(item))
+            self._list_items_threaded()
+        except Exception:
+            return
 
     def create_snapshot(self, snapshot=None):
         if snapshot:

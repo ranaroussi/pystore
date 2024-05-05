@@ -4,6 +4,9 @@ Change Log
 0.1.24
 ------
 - Replace default parquet engine, deprecate Fastparquet, start using as default pyarrow
+- Remove "chunksize" from `collection.py` as it's not used by dask nor pyarrow.
+- Solve issue #69
+- Fix collection.write by passing overwrite parameter.
 
 0.1.23
 ------
