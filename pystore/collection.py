@@ -200,6 +200,7 @@ class Collection(object):
               epochdate=epochdate, reload_items=reload_items, **kwargs)
 
         try:
+            multitasking.wait_for_tasks()
             self.delete_item(item=item,reload_items=False)
             shutil.move(self._item_path(tmp_item),self._item_path(item))
             self._list_items_threaded()
