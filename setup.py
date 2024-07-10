@@ -62,9 +62,4 @@ setup(
     install_requires=['python-snappy', 'multitasking', 'toolz', 'partd',
                       'cloudpickle', 'distributed', 'pandas', 'numpy',
                       'pyarrow', 'dask[dataframe]'],
-    entry_points={
-        'console_scripts': [
-            'sample=sample:main',
-        ],
-    },
 )
