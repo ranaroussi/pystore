@@ -30,7 +30,7 @@ class Item(object):
 
     def __init__(self, item, datastore, collection,
                  snapshot=None, filters=None, columns=None,
-                 engine="fastparquet"):
+                 engine="pyarrow"):
         self.engine = engine
         self.datastore = datastore
         self.collection = collection
