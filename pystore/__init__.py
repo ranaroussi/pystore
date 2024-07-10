@@ -31,7 +31,7 @@ from .utils import (
     set_partition_size, get_partition_size,
     list_stores, delete_store, delete_stores)
 
-__version__ = "0.1.23"
+__version__ = "0.1.24"
 __author__ = "Ran Aroussi"
 
 __all__ = ["store", "read_csv", "get_path", "set_path",
