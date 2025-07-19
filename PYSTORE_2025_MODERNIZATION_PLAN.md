@@ -11,43 +11,43 @@ This plan outlines a comprehensive modernization of PyStore to address critical 
 
 ## Modernization Phases
 
-### Phase 1: Critical Bug Fixes & Stabilization (Weeks 1-4)
-**Goal**: Fix data integrity issues and stabilize core functionality
+### Phase 1: Dependency Modernization (Weeks 1-4)
+**Goal**: Update to modern Python ecosystem (may auto-fix many bugs)
 
-#### 1.1 Fix Append Operations (Priority: CRITICAL)
-- [ ] Rewrite `collection.append()` to prevent data loss
-- [ ] Implement proper duplicate detection that considers both index AND values
-- [ ] Add comprehensive test coverage for append operations
-- [ ] Fix index sorting issues after append
-- [ ] Address memory efficiency (streaming approach vs loading all data)
-
-#### 1.2 Error Handling Improvements
-- [ ] Replace all silent failures with proper exceptions
-- [ ] Add detailed error messages with actionable information
-- [ ] Implement logging throughout the codebase
-- [ ] Add input validation for all public methods
-
-#### 1.3 Fix Platform-Specific Issues
-- [ ] Fix path handling using pathlib exclusively
-- [ ] Resolve Windows-specific path expansion issues
-- [ ] Test and fix macOS M1/M2 compatibility
-- [ ] Ensure consistent behavior across platforms
-
-### Phase 2: Dependency Modernization (Weeks 5-8)
-**Goal**: Update to modern Python ecosystem
-
-#### 2.1 Core Dependencies
+#### 1.1 Core Dependencies
 - [ ] Ensure full compatibility with Dask 2024.x
 - [ ] Complete PyArrow migration (remove all Fastparquet remnants)
 - [ ] Update to Pandas 2.x APIs
 - [ ] Support Python 3.9-3.12
 - [ ] Update NumPy compatibility
 
-#### 2.2 Remove Legacy Code
+#### 1.2 Remove Legacy Code
 - [ ] Remove deprecated Fastparquet code paths
 - [ ] Clean up compatibility shims for old versions
 - [ ] Remove unused dependencies
 - [ ] Modernize setup.py to use pyproject.toml
+
+### Phase 2: Critical Bug Fixes & Stabilization (Weeks 5-8)
+**Goal**: Fix remaining data integrity issues and stabilize core functionality
+
+#### 2.1 Fix Append Operations (Priority: CRITICAL)
+- [ ] Rewrite `collection.append()` to prevent data loss (if not fixed by dependency updates)
+- [ ] Implement proper duplicate detection that considers both index AND values
+- [ ] Add comprehensive test coverage for append operations
+- [ ] Fix index sorting issues after append
+- [ ] Address memory efficiency (streaming approach vs loading all data)
+
+#### 2.2 Error Handling Improvements
+- [ ] Replace all silent failures with proper exceptions
+- [ ] Add detailed error messages with actionable information
+- [ ] Implement logging throughout the codebase
+- [ ] Add input validation for all public methods
+
+#### 2.3 Fix Platform-Specific Issues
+- [ ] Fix path handling using pathlib exclusively
+- [ ] Resolve Windows-specific path expansion issues
+- [ ] Test and fix macOS M1/M2 compatibility
+- [ ] Ensure consistent behavior across platforms
 
 ### Phase 3: Performance Optimization (Weeks 9-12)
 **Goal**: Improve performance and scalability
@@ -122,7 +122,7 @@ This plan outlines a comprehensive modernization of PyStore to address critical 
 - Data integrity verification tests
 
 ### Release Plan
-- **v1.0.0-alpha**: Phase 1 & 2 complete (Critical fixes + Dependencies)
+- **v1.0.0-alpha**: Phase 1 & 2 complete (Dependencies + Critical fixes)
 - **v1.0.0-beta**: Phase 3 complete (Performance optimizations)
 - **v1.0.0-rc**: Phase 4 complete (Feature enhancements)
 - **v1.0.0**: Phase 5 complete (Full modernization)
@@ -173,8 +173,8 @@ mypy>=1.0.0  # dev dependency
 - Active community engagement
 
 ## Timeline Summary
-- **Weeks 1-4**: Critical bug fixes
-- **Weeks 5-8**: Dependency updates
+- **Weeks 1-4**: Dependency updates (may auto-fix many issues)
+- **Weeks 5-8**: Critical bug fixes (for remaining issues)
 - **Weeks 9-12**: Performance optimization
 - **Weeks 13-16**: Feature additions
 - **Weeks 17-20**: Documentation and polish
