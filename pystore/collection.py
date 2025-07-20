@@ -248,14 +248,14 @@ class Collection(object):
         data = data.copy()
 
         try:
-            if epochdate or ("datetime" in str(data.index.dtype) and
-                             any(data.index.nanosecond) > 0):
+            if epochdate or "datetime" in str(data.index.dtype):
                 data = utils.datetime_to_int64(data)
             old_index = dd.read_parquet(self._item_path(item, as_string=True),
                                         columns=[], engine="pyarrow"
                                         ).index.compute()
             data = data[~data.index.isin(old_index)]
-        except Exception:
+        except Exception as e:
+            logger.error(f"Error processing append for item '{item}': {e}")
             return
 
         if data.empty:

@@ -81,7 +81,7 @@ Using PyStore
     # -*- coding: utf-8 -*-
 
     import pystore
-    import quandl
+    import yfinance as yf
 
     # Set storage path (optional)
     # Defaults to `~/pystore` or `PYSTORE_PATH` environment variable (if set)
@@ -102,11 +102,11 @@ Using PyStore
     # List items in collection
     collection.list_items()
 
-    # Load some data from Quandl
-    aapl = quandl.get("WIKI/AAPL", authtoken="your token here")
+    # Load some data from Yahoo Finance
+    aapl = yf.download("AAPL", multi_level_index=False)
 
     # Store the first 100 rows of the data in the collection under "AAPL"
-    collection.write('AAPL', aapl[:100], metadata={'source': 'Quandl'})
+    collection.write('AAPL', aapl[:100], metadata={'source': 'Yahoo Finance'})
 
     # Reading the item's data
     item = collection.item('AAPL')

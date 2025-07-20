@@ -218,17 +218,13 @@ class SchemaEvolution:
             ('float32', 'float64'),
             ('int32', 'float64'),
             ('int64', 'float64'),
-            # Allow any type to object
-            (old_dtype, 'object') for old_dtype in ['int32', 'int64', 'float32', 'float64', 'bool']
         }
         
-        # Flatten the set comprehension
-        all_compatible = set()
+        # Allow any type to object
         for dtype in ['int32', 'int64', 'float32', 'float64', 'bool']:
-            all_compatible.add((dtype, 'object'))
-        all_compatible.update(compatible_changes)
+            compatible_changes.add((dtype, 'object'))
         
-        return (old_dtype, new_dtype) in all_compatible
+        return (old_dtype, new_dtype) in compatible_changes
     
     def evolve_dataframe(self, df: pd.DataFrame, target_schema: Schema) -> pd.DataFrame:
         """Evolve DataFrame to match target schema"""
