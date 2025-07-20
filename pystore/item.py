@@ -81,11 +81,15 @@ class Item(object):
 
         if parse_dates and "datetime" not in str(df.index.dtype):
             if not isinstance(df.index, pd.MultiIndex):  # Only for single index
-                df.index.name = ""
+                # Preserve original index name
+                original_name = df.index.name
                 if str(df.index.dtype) == "float64":
                     df.index = pd.to_datetime(df.index, unit="s")
-                elif df.index.values[0] > 1e6:
+                elif len(df) > 0 and df.index.values[0] > 1e6:
                     df.index = pd.to_datetime(df.index)
+                # Restore original name if it was None
+                if original_name is None:
+                    df.index.name = None
 
         return df
 

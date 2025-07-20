@@ -183,7 +183,8 @@ class AsyncContextManager:
         self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=4)
     
     async def __aenter__(self):
-        if hasattr(self.sync_obj, 'collection'):  # It's a store
+        # Check class name to distinguish between Store and Collection
+        if self.sync_obj.__class__.__name__ == 'store':  # It's a store
             self.async_obj = AsyncStore(self.sync_obj, self.executor)
         else:  # It's a collection
             self.async_obj = AsyncCollection(self.sync_obj, self.executor)

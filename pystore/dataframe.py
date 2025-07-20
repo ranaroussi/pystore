@@ -83,7 +83,18 @@ def prepare_dataframe_for_storage(df: pd.DataFrame) -> Tuple[pd.DataFrame, dict]
                 if isinstance(sample, (list, dict, set)):
                     logger.debug(f"Converting complex column '{col}' to JSON")
                     metadata['complex_columns'][col] = 'json'
-                    df[col] = df[col].apply(lambda x: json.dumps(x) if pd.notna(x) else None)
+                    # Handle null check properly for arrays and other objects
+                    def safe_json_dumps(x):
+                        try:
+                            if x is None:
+                                return None
+                            elif isinstance(x, np.ndarray):
+                                return json.dumps(x.tolist())
+                            else:
+                                return json.dumps(x)
+                        except:
+                            return None
+                    df[col] = df[col].apply(safe_json_dumps)
                 elif isinstance(sample, pd.DataFrame):
                     logger.debug(f"Converting nested DataFrame column '{col}' to JSON")
                     metadata['complex_columns'][col] = 'dataframe'
@@ -128,7 +139,18 @@ def restore_dataframe_from_storage(df: pd.DataFrame, metadata: dict) -> pd.DataF
         df = df.set_index(index_names)
         
         # Restore index dtypes if possible
-        # Note: Some dtype conversions may not be reversible
+        if 'index_dtypes' in metadata and metadata['index_dtypes']:
+            # For MultiIndex, we need to reconstruct with correct dtypes
+            if df.index.nlevels > 1:
+                new_levels = []
+                for i, dtype_str in enumerate(metadata['index_dtypes']):
+                    level = df.index.levels[i]
+                    if dtype_str == 'object' and str(level.dtype).startswith('string'):
+                        # Convert string[pyarrow] back to object dtype
+                        new_levels.append(level.astype('object'))
+                    else:
+                        new_levels.append(level)
+                df.index = df.index.set_levels(new_levels)
     
     return df
 
@@ -196,19 +218,19 @@ class DataTypeHandler:
                 type_info[col] = {'type': 'timedelta', 'unit': 'ns'}
                 df[col] = df[col].astype('int64')
                 
-            elif pd.api.types.is_period_dtype(dtype):
+            elif isinstance(dtype, pd.PeriodDtype):
                 # Convert period to string representation
                 type_info[col] = {'type': 'period', 'freq': dtype.freq.name}
                 df[col] = df[col].astype(str)
                 
-            elif pd.api.types.is_interval_dtype(dtype):
+            elif isinstance(dtype, pd.IntervalDtype):
                 # Split interval into left/right columns
                 type_info[col] = {'type': 'interval', 'closed': dtype.closed}
                 df[f'{col}_left'] = df[col].apply(lambda x: x.left if pd.notna(x) else np.nan)
                 df[f'{col}_right'] = df[col].apply(lambda x: x.right if pd.notna(x) else np.nan)
                 df = df.drop(columns=[col])
                 
-            elif pd.api.types.is_categorical_dtype(dtype):
+            elif isinstance(dtype, pd.CategoricalDtype):
                 # Store categories separately
                 type_info[col] = {
                     'type': 'category',
@@ -229,7 +251,11 @@ class DataTypeHandler:
                 df[col] = pd.to_timedelta(df[col], unit=info['unit'])
                 
             elif info['type'] == 'period':
-                df[col] = pd.PeriodIndex(df[col], freq=info['freq'])
+                # Handle frequency changes in pandas (ME -> M for periods)
+                freq = info['freq']
+                if freq == 'ME':
+                    freq = 'M'
+                df[col] = pd.PeriodIndex(df[col], freq=freq)
                 
             elif info['type'] == 'interval':
                 # Reconstruct interval from left/right columns
@@ -281,7 +307,7 @@ class TimezoneHandler:
         
         # Handle timezone-aware columns
         for col in df.columns:
-            if pd.api.types.is_datetime64tz_dtype(df[col]):
+            if isinstance(df[col].dtype, pd.DatetimeTZDtype):
                 original_tz = str(df[col].dt.tz)
                 tz_info[f'column_{col}_tz'] = original_tz
                 logger.debug(f"Converting column '{col}' from {original_tz} to {target_tz}")
@@ -311,7 +337,13 @@ class TimezoneHandler:
         # Restore index timezone
         if 'index_tz' in tz_info and pd.api.types.is_datetime64_any_dtype(df.index):
             logger.debug(f"Restoring index timezone to {tz_info['index_tz']}")
-            df.index = pd.to_datetime(df.index).tz_localize('UTC').tz_convert(tz_info['index_tz'])
+            # Check if index is already timezone-aware
+            if hasattr(df.index, 'tz') and df.index.tz is not None:
+                # Already has timezone, just convert
+                df.index = df.index.tz_convert(tz_info['index_tz'])
+            else:
+                # No timezone, localize first then convert
+                df.index = pd.to_datetime(df.index).tz_localize('UTC').tz_convert(tz_info['index_tz'])
         
         # Restore column timezones
         for key, tz in tz_info.items():
@@ -319,7 +351,13 @@ class TimezoneHandler:
                 col = key[7:-3]  # Extract column name
                 if col in df.columns and pd.api.types.is_datetime64_any_dtype(df[col]):
                     logger.debug(f"Restoring column '{col}' timezone to {tz}")
-                    df[col] = pd.to_datetime(df[col]).dt.tz_localize('UTC').dt.tz_convert(tz)
+                    # Check if column is already timezone-aware
+                    if hasattr(df[col], 'dt') and hasattr(df[col].dt, 'tz') and df[col].dt.tz is not None:
+                        # Already has timezone, just convert
+                        df[col] = df[col].dt.tz_convert(tz)
+                    else:
+                        # No timezone, localize first then convert
+                        df[col] = pd.to_datetime(df[col]).dt.tz_localize('UTC').dt.tz_convert(tz)
         
         return df
     

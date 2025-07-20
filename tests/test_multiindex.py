@@ -177,7 +177,7 @@ class TestComplexDataTypes:
         result = self.collection.item('categorical_test').to_pandas()
         
         # Verify categorical is preserved
-        assert pd.api.types.is_categorical_dtype(result['category'])
+        assert isinstance(result['category'].dtype, pd.CategoricalDtype)
         assert result['category'].cat.categories.tolist() == ['A', 'B', 'C']
         assert result['category'].cat.ordered == True
         pd.testing.assert_frame_equal(result, df)
@@ -195,7 +195,7 @@ class TestComplexDataTypes:
         result = self.collection.item('interval_test').to_pandas()
         
         # Verify interval is preserved
-        assert pd.api.types.is_interval_dtype(result['interval'])
+        assert isinstance(result['interval'].dtype, pd.IntervalDtype)
         assert all(result['interval'] == df['interval'])
     
     def test_period_column(self):
@@ -210,7 +210,7 @@ class TestComplexDataTypes:
         result = self.collection.item('period_test').to_pandas()
         
         # Verify period is preserved
-        assert pd.api.types.is_period_dtype(result['period'])
+        assert isinstance(result['period'].dtype, pd.PeriodDtype)
         assert all(result['period'] == df['period'])
     
     def test_mixed_complex_types(self):
@@ -227,7 +227,7 @@ class TestComplexDataTypes:
         
         # Verify all types preserved
         assert pd.api.types.is_timedelta64_dtype(result['timedelta'])
-        assert pd.api.types.is_categorical_dtype(result['category'])
+        assert isinstance(result['category'].dtype, pd.CategoricalDtype)
         pd.testing.assert_frame_equal(result, df)
     
     def test_complex_object_columns(self):

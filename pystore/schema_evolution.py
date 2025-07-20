@@ -218,17 +218,36 @@ class SchemaEvolution:
             ('float32', 'float64'),
             ('int32', 'float64'),
             ('int64', 'float64'),
-            # Allow any type to object
-            (old_dtype, 'object') for old_dtype in ['int32', 'int64', 'float32', 'float64', 'bool']
         }
+        # Allow any type to object
+        compatible_changes.update({
+            (old_dtype, 'object') for old_dtype in ['int32', 'int64', 'float32', 'float64', 'bool']
+        })
         
-        # Flatten the set comprehension
-        all_compatible = set()
-        for dtype in ['int32', 'int64', 'float32', 'float64', 'bool']:
-            all_compatible.add((dtype, 'object'))
-        all_compatible.update(compatible_changes)
+        return (old_dtype, new_dtype) in compatible_changes
+    
+    def detect_schema_changes(self, old_df: pd.DataFrame, new_df: pd.DataFrame) -> List[SchemaChange]:
+        """Detect schema changes between two DataFrames"""
+        old_schema = Schema.from_dataframe(old_df)
+        new_schema = Schema.from_dataframe(new_df)
+        return old_schema.detect_changes(new_schema)
+    
+    def get_target_schema(self, old_df: pd.DataFrame, new_df: pd.DataFrame) -> Schema:
+        """Get the target schema after merging two DataFrames"""
+        # For ADD_ONLY strategy, we merge columns from both
+        all_columns = list(old_df.columns) + [col for col in new_df.columns if col not in old_df.columns]
+        dtypes = {}
         
-        return (old_dtype, new_dtype) in all_compatible
+        # Get dtypes from old dataframe
+        for col in old_df.columns:
+            dtypes[col] = str(old_df[col].dtype)
+        
+        # Add new columns from new dataframe
+        for col in new_df.columns:
+            if col not in dtypes:
+                dtypes[col] = str(new_df[col].dtype)
+        
+        return Schema(all_columns, dtypes, str(old_df.index.dtype), 1)
     
     def evolve_dataframe(self, df: pd.DataFrame, target_schema: Schema) -> pd.DataFrame:
         """Evolve DataFrame to match target schema"""
@@ -283,6 +302,31 @@ class SchemaEvolution:
         """Register a custom migration function between versions"""
         self.migration_functions[(from_version, to_version)] = migration_func
         logger.info(f"Registered migration from version {from_version} to {to_version}")
+    
+    def migrate_to_version(self, to_version: int) -> pd.DataFrame:
+        """Migrate the stored item to a specific version
+        
+        Note: This method needs access to the actual data, which SchemaEvolution
+        doesn't have directly. In a real implementation, this would be called
+        by the collection with the current data.
+        """
+        # Store reference to collection and item for migration
+        if not hasattr(self, '_collection') or not hasattr(self, '_item'):
+            raise RuntimeError(
+                "migrate_to_version requires collection context. "
+                "Call collection.migrate_item_to_version instead."
+            )
+        
+        # Get current data from collection
+        current_data = self._collection.item(self._item).to_pandas()
+        
+        # Apply migration
+        migrated_data = self.migrate(current_data, 1, to_version)
+        
+        # Write back to collection
+        self._collection.write(self._item, migrated_data, overwrite=True)
+        
+        return migrated_data
     
     def migrate(self, df: pd.DataFrame, from_version: int, to_version: int) -> pd.DataFrame:
         """Migrate DataFrame from one version to another"""

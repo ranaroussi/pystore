@@ -18,7 +18,7 @@ class TestPerformanceOptimizations:
         # Create initial data
         initial_data = pd.DataFrame({
             'value': range(1000)
-        }, index=pd.date_range('2024-01-01', periods=1000, freq='1H'))
+        }, index=pd.date_range('2024-01-01', periods=1000, freq='1h'))
         
         test_collection.write('stream_test', initial_data)
         
@@ -27,7 +27,7 @@ class TestPerformanceOptimizations:
             for i in range(5):
                 chunk_data = pd.DataFrame({
                     'value': range(i * 100, (i + 1) * 100)
-                }, index=pd.date_range('2024-02-01', periods=100, freq=f'{i+1}H'))
+                }, index=pd.date_range('2024-02-01', periods=100, freq=f'{i+1}h'))
                 yield chunk_data
         
         # Use streaming append
@@ -48,7 +48,7 @@ class TestPerformanceOptimizations:
             data = pd.DataFrame({
                 'value': np.random.randn(1000),
                 'category': np.random.choice(['A', 'B', 'C'], 1000)
-            }, index=pd.date_range('2024-01-01', periods=1000, freq='1H'))
+            }, index=pd.date_range('2024-01-01', periods=1000, freq='1h'))
             
             items_data[f'batch_item_{i}'] = data
             metadata[f'batch_item_{i}'] = {'batch_index': i}

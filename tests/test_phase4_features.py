@@ -289,7 +289,7 @@ class TestTimezoneOperations:
         tz = 'US/Eastern'
         df = pd.DataFrame({
             'value': np.random.randn(24)
-        }, index=pd.date_range('2023-01-01', periods=24, freq='H', tz=tz))
+        }, index=pd.date_range('2023-01-01', periods=24, freq='h', tz=tz))
         
         # Write and read
         self.collection.write('tz_test', df)
@@ -311,7 +311,7 @@ class TestTimezoneOperations:
         result = self.collection.item('tz_col_test').to_pandas()
         
         # Verify column timezone preserved
-        assert pd.api.types.is_datetime64tz_dtype(result['timestamp'])
+        assert isinstance(result['timestamp'].dtype, pd.DatetimeTZDtype)
 
 
 if __name__ == "__main__":
