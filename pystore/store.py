@@ -23,6 +23,10 @@ import shutil
 
 from . import utils
 from .collection import Collection
+from .exceptions import CollectionExistsError, CollectionNotFoundError
+from .logger import get_logger
+
+logger = get_logger(__name__)
 
 
 class store(object):
@@ -49,8 +53,8 @@ class store(object):
             if overwrite:
                 self.delete_collection(collection)
             else:
-                raise ValueError(
-                    "Collection exists! To overwrite, use `overwrite=True`")
+                raise CollectionExistsError(
+                    f"Collection '{collection}' already exists! To overwrite, use overwrite=True")
 
         os.makedirs(collection_path)
         os.makedirs(utils.make_path(collection_path, "_snapshots"))
@@ -63,11 +67,19 @@ class store(object):
 
     def delete_collection(self, collection):
         # delete collection (subdir)
-        shutil.rmtree(utils.make_path(self.datastore, collection))
-
-        # update collections
-        self.collections = self.list_collections()
-        return True
+        collection_path = utils.make_path(self.datastore, collection)
+        if not utils.path_exists(collection_path):
+            raise CollectionNotFoundError(f"Collection '{collection}' does not exist")
+        
+        try:
+            shutil.rmtree(collection_path)
+            # update collections
+            self.collections = self.list_collections()
+            logger.info(f"Successfully deleted collection '{collection}'")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to delete collection '{collection}': {e}")
+            raise RuntimeError(f"Failed to delete collection '{collection}': {str(e)}") from e
 
     def list_collections(self):
         # lists collections (subdirs)

@@ -21,12 +21,22 @@
 import os
 import time
 import shutil
+import tempfile
+import pandas as pd
 import dask.dataframe as dd
 import multitasking
+from typing import Optional, Union
 
 from . import utils
 from .item import Item
 from . import config
+from .exceptions import (
+    ItemNotFoundError, ItemExistsError, ValidationError,
+    DataIntegrityError, StorageError
+)
+from .logger import get_logger
+
+logger = get_logger(__name__)
 
 
 class Collection(object):
@@ -85,11 +95,19 @@ class Collection(object):
                      "\nName")[0].split("\n")[-1].split(" ")[0])
 
     def delete_item(self, item, reload_items=False):
-        shutil.rmtree(self._item_path(item))
-        self.items.remove(item)
-        if reload_items:
-            self.items = self._list_items_threaded()
-        return True
+        if not utils.path_exists(self._item_path(item)):
+            raise ItemNotFoundError(f"Item '{item}' does not exist")
+        
+        try:
+            shutil.rmtree(self._item_path(item))
+            self.items.remove(item)
+            if reload_items:
+                self.items = self._list_items_threaded()
+            logger.info(f"Successfully deleted item '{item}'")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to delete item '{item}': {e}")
+            raise StorageError(f"Failed to delete item '{item}': {str(e)}") from e
 
     @multitasking.task
     def write_threaded(self, item, data, metadata={},
@@ -107,9 +125,10 @@ class Collection(object):
               **kwargs):
 
         if utils.path_exists(self._item_path(item)) and not overwrite:
-            raise ValueError("""
-                Item already exists. To overwrite, use `overwrite=True`.
-                Otherwise, use `<collection>.append()`""")
+            raise ItemExistsError(
+                f"Item '{item}' already exists. To overwrite, use overwrite=True. "
+                "Otherwise, use collection.append()"
+            )
 
         if isinstance(data, Item):
             data = data.to_pandas()
@@ -244,3 +263,112 @@ class Collection(object):
         os.makedirs(snapshots_path)
         self.snapshots = self.list_snapshots()
         return True
+    
+    def _validate_schema_compatibility(self, existing_data: dd.DataFrame, 
+                                      new_data: Union[pd.DataFrame, dd.DataFrame]) -> None:
+        """Validate schema compatibility between existing and new data"""
+        existing_columns = set(existing_data.columns)
+        new_columns = set(new_data.columns)
+        
+        if existing_columns != new_columns:
+            missing_in_new = existing_columns - new_columns
+            extra_in_new = new_columns - existing_columns
+            
+            error_msg = "Schema mismatch detected:\n"
+            if missing_in_new:
+                error_msg += f"  Missing columns in new data: {missing_in_new}\n"
+            if extra_in_new:
+                error_msg += f"  Extra columns in new data: {extra_in_new}\n"
+                
+            raise ValidationError(error_msg)
+    
+    def _handle_duplicates(self, existing_data: dd.DataFrame,
+                          new_data: Union[pd.DataFrame, dd.DataFrame],
+                          strategy: str) -> tuple:
+        """Handle duplicate indices based on strategy"""
+        if strategy == "keep_all":
+            return new_data, False
+            
+        # Get existing index efficiently
+        existing_index = existing_data.index.compute()
+        new_index = new_data.index
+        
+        # Find overlapping indices
+        if isinstance(new_index, dd.Index):
+            new_index = new_index.compute()
+            
+        overlapping_indices = existing_index.intersection(new_index)
+        has_duplicates = len(overlapping_indices) > 0
+        
+        if has_duplicates:
+            logger.info(f"Found {len(overlapping_indices)} overlapping indices")
+            
+            if strategy == "error":
+                raise DataIntegrityError(
+                    f"Found {len(overlapping_indices)} duplicate indices. "
+                    "Use duplicate_handling='keep_last' or 'keep_first' to handle them."
+                )
+            elif strategy == "keep_first":
+                # Remove overlapping indices from new data
+                new_data = new_data[~new_data.index.isin(overlapping_indices)]
+                logger.debug(f"Removed {len(overlapping_indices)} duplicate rows from new data")
+        
+        return new_data, has_duplicates
+    
+    def _atomic_write(self, item: str, data: dd.DataFrame, metadata: dict,
+                      npartitions: int, epochdate: bool = False, **kwargs) -> None:
+        """Perform atomic write operation using temporary directory"""
+        tmp_dir = None
+        tmp_item_name = f"_tmp_{item}_{os.getpid()}"
+        
+        try:
+            # Create temporary directory in the same filesystem
+            tmp_dir = tempfile.mkdtemp(dir=utils.make_path(self.datastore, self.collection))
+            tmp_path = utils.make_path(tmp_dir, "data")
+            
+            logger.debug(f"Writing to temporary location: {tmp_path}")
+            
+            # Write data to temporary location
+            dd.to_parquet(data, str(tmp_path), 
+                         compression="snappy", 
+                         engine="pyarrow",
+                         write_metadata_file=True,
+                         **kwargs)
+            
+            # Write metadata
+            utils.write_metadata(tmp_path, metadata)
+            
+            # Get paths
+            final_path = self._item_path(item)
+            backup_path = self._item_path(f"_backup_{item}")
+            
+            # Create backup of existing data
+            if utils.path_exists(final_path):
+                logger.debug(f"Creating backup at: {backup_path}")
+                if utils.path_exists(backup_path):
+                    shutil.rmtree(backup_path)
+                shutil.move(str(final_path), str(backup_path))
+            
+            # Move temporary data to final location
+            logger.debug(f"Moving data to final location: {final_path}")
+            shutil.move(str(tmp_path), str(final_path))
+            
+            # Remove backup on success
+            if utils.path_exists(backup_path):
+                logger.debug("Removing backup after successful write")
+                shutil.rmtree(backup_path)
+                
+        except Exception as e:
+            # Restore from backup if it exists
+            backup_path = self._item_path(f"_backup_{item}")
+            if utils.path_exists(backup_path):
+                logger.warning("Restoring from backup due to write failure")
+                final_path = self._item_path(item)
+                if utils.path_exists(final_path):
+                    shutil.rmtree(final_path)
+                shutil.move(str(backup_path), str(final_path))
+            raise
+        finally:
+            # Clean up temporary directory
+            if tmp_dir and os.path.exists(tmp_dir):
+                shutil.rmtree(tmp_dir)

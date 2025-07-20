@@ -26,6 +26,12 @@ from .utils import (
     set_client, get_client,
     set_partition_size, get_partition_size,
     list_stores, delete_store, delete_stores)
+from .exceptions import (
+    PyStoreError, DataIntegrityError, ItemNotFoundError,
+    ItemExistsError, CollectionNotFoundError, CollectionExistsError,
+    SnapshotNotFoundError, StorageError, SchemaError,
+    ConfigurationError, ValidationError
+)
 
 __version__ = "1.0.0-dev"
 __author__ = "Ran Aroussi"
@@ -33,4 +39,9 @@ __author__ = "Ran Aroussi"
 __all__ = ["store", "read_csv", "get_path", "set_path",
            "set_client", "get_client",
            "set_partition_size", "get_partition_size",
-           "list_stores", "delete_store", "delete_stores"]
+           "list_stores", "delete_store", "delete_stores",
+           # Exceptions
+           "PyStoreError", "DataIntegrityError", "ItemNotFoundError",
+           "ItemExistsError", "CollectionNotFoundError", "CollectionExistsError",
+           "SnapshotNotFoundError", "StorageError", "SchemaError",
+           "ConfigurationError", "ValidationError"]

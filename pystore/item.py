@@ -22,6 +22,10 @@ import dask.dataframe as dd
 import pandas as pd
 
 from . import utils
+from .exceptions import ItemNotFoundError, SnapshotNotFoundError
+from .logger import get_logger
+
+logger = get_logger(__name__)
 
 
 class Item(object):
@@ -37,10 +41,10 @@ class Item(object):
 
         self._path = utils.make_path(datastore, collection, item)
         if not self._path.exists():
-            raise ValueError(
-                "Item `%s` doesn't exist. "
-                "Create it using collection.write(`%s`, data, ...)" % (
-                    item, item))
+            raise ItemNotFoundError(
+                f"Item '{item}' doesn't exist. "
+                f"Create it using collection.write('{item}', data, ...)"
+            )
         if snapshot:
             snap_path = utils.make_path(
                 datastore, collection, "_snapshots", snapshot)
@@ -48,11 +52,12 @@ class Item(object):
             self._path = utils.make_path(snap_path, item)
 
             if not utils.path_exists(snap_path):
-                raise ValueError("Snapshot `%s` doesn't exist" % snapshot)
+                raise SnapshotNotFoundError(f"Snapshot '{snapshot}' doesn't exist")
 
             if not utils.path_exists(self._path):
-                raise ValueError(
-                    "Item `%s` doesn't exist in this snapshot" % item)
+                raise ItemNotFoundError(
+                    f"Item '{item}' doesn't exist in snapshot '{snapshot}'"
+                )
 
         self.metadata = utils.read_metadata(self._path)
         self.data = dd.read_parquet(
