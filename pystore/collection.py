@@ -398,8 +398,12 @@ class Collection(object):
                                         columns=[], engine="pyarrow"
                                         ).index.compute()
             data = data[~data.index.isin(old_index)]
-        except Exception:
-            pass
+        except FileNotFoundError:
+            # No existing data to filter against - this is expected for new items
+            logger.debug(f"No existing data found for item '{item}' - skipping duplicate filtering")
+        except Exception as e:
+            # Log the error but continue - duplicate filtering is not critical
+            logger.warning(f"Failed to filter duplicates for item '{item}': {str(e)}")
         return data
 
     def _combine_dataframes(self, current, data, evolved_current_df):
