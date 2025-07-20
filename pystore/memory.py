@@ -153,6 +153,48 @@ def estimate_dataframe_memory(df: pd.DataFrame) -> float:
     return df.memory_usage(deep=True).sum() / (1024**3)
 
 
+def _optimize_integer_column(df: pd.DataFrame, col: str, c_min: float, c_max: float) -> None:
+    """Optimize integer column by downcasting to smallest possible type."""
+    if c_min > np.iinfo(np.int8).min and c_max < np.iinfo(np.int8).max:
+        df[col] = df[col].astype(np.int8)
+    elif c_min > np.iinfo(np.int16).min and c_max < np.iinfo(np.int16).max:
+        df[col] = df[col].astype(np.int16)
+    elif c_min > np.iinfo(np.int32).min and c_max < np.iinfo(np.int32).max:
+        df[col] = df[col].astype(np.int32)
+
+
+def _optimize_float_column(df: pd.DataFrame, col: str, c_min: float, c_max: float, deep: bool) -> None:
+    """Optimize float column by downcasting or converting to category."""
+    if deep and df[col].nunique() < 1000:
+        # Consider converting to category if few unique values
+        df[col] = pd.Categorical(df[col])
+    elif c_min > np.finfo(np.float32).min and c_max < np.finfo(np.float32).max:
+        df[col] = df[col].astype(np.float32)
+
+
+def _optimize_object_column(df: pd.DataFrame, col: str) -> None:
+    """Optimize object column by converting to category if appropriate."""
+    num_unique = df[col].nunique()
+    num_total = len(df[col])
+    
+    # Convert to category if less than 50% unique
+    if num_unique / num_total < 0.5:
+        df[col] = pd.Categorical(df[col])
+
+
+def _optimize_numeric_column(df: pd.DataFrame, col: str, col_type: np.dtype, deep: bool) -> None:
+    """Optimize a numeric column based on its type."""
+    c_min = df[col].min()
+    c_max = df[col].max()
+    
+    # Integer optimization
+    if str(col_type)[:3] == 'int':
+        _optimize_integer_column(df, col, c_min, c_max)
+    # Float optimization
+    elif str(col_type)[:5] == 'float':
+        _optimize_float_column(df, col, c_min, c_max, deep)
+
+
 def optimize_dataframe_memory(df: pd.DataFrame, 
                              deep: bool = True) -> pd.DataFrame:
     """
@@ -172,39 +214,14 @@ def optimize_dataframe_memory(df: pd.DataFrame,
     """
     original_memory = estimate_dataframe_memory(df)
     
-    # Optimize numeric columns
+    # Optimize each column
     for col in df.columns:
         col_type = df[col].dtype
         
         if col_type != 'object':
-            c_min = df[col].min()
-            c_max = df[col].max()
-            
-            # Integer optimization
-            if str(col_type)[:3] == 'int':
-                if c_min > np.iinfo(np.int8).min and c_max < np.iinfo(np.int8).max:
-                    df[col] = df[col].astype(np.int8)
-                elif c_min > np.iinfo(np.int16).min and c_max < np.iinfo(np.int16).max:
-                    df[col] = df[col].astype(np.int16)
-                elif c_min > np.iinfo(np.int32).min and c_max < np.iinfo(np.int32).max:
-                    df[col] = df[col].astype(np.int32)
-            
-            # Float optimization
-            elif str(col_type)[:5] == 'float':
-                if deep and df[col].nunique() < 1000:
-                    # Consider converting to category if few unique values
-                    df[col] = pd.Categorical(df[col])
-                elif c_min > np.finfo(np.float32).min and c_max < np.finfo(np.float32).max:
-                    df[col] = df[col].astype(np.float32)
-        
-        # Object/string optimization
+            _optimize_numeric_column(df, col, col_type, deep)
         elif deep and col_type == 'object':
-            num_unique = df[col].nunique()
-            num_total = len(df[col])
-            
-            # Convert to category if less than 50% unique
-            if num_unique / num_total < 0.5:
-                df[col] = pd.Categorical(df[col])
+            _optimize_object_column(df, col)
     
     optimized_memory = estimate_dataframe_memory(df)
     reduction_pct = (1 - optimized_memory / original_memory) * 100

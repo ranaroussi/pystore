@@ -221,38 +221,33 @@ class Collection(object):
                           epochdate, reload_items,
                           **kwargs)
 
-    def write(self, item, data, metadata={},
-              npartitions=None, overwrite=False,
-              epochdate=False, reload_items=False,
-              **kwargs):
-
+    def _validate_write_item(self, item, overwrite):
+        """Validate item doesn't exist unless overwrite is True."""
         if utils.path_exists(self._item_path(item)) and not overwrite:
             raise ItemExistsError(
                 f"Item '{item}' already exists. To overwrite, use overwrite=True. "
                 "Otherwise, use collection.append()"
             )
 
+    def _prepare_write_data(self, data):
+        """Prepare data for writing by converting Item to DataFrame and copying."""
         if isinstance(data, Item):
-            data = data.to_pandas()
+            return data.to_pandas()
         else:
             # work on copy
-            data = data.copy()
+            return data.copy()
 
-        # Validate data using custom validator if set
+    def _apply_data_transformations(self, data, metadata, epochdate):
+        """Apply all data transformations and update metadata."""
+        # Validate data
         self._validate_data(data)
-        
-        # Validate DataFrame before storage
         validate_dataframe_for_storage(data)
         
-        # Handle timezone - convert all to UTC for consistent storage
-        if hasattr(data.index, 'tz') and data.index.tz is not None:
-            logger.debug(f"Converting index timezone from {data.index.tz} to UTC for storage")
-            data.index = data.index.tz_convert('UTC')
+        # Handle timezone conversion
+        data = self._convert_timezone_to_utc(data)
         
         # Handle MultiIndex and complex types
         data, transform_metadata = prepare_dataframe_for_storage(data)
-        
-        # Store transformation metadata
         metadata = metadata.copy()
         metadata['_transform_metadata'] = transform_metadata
         
@@ -263,38 +258,50 @@ class Collection(object):
         # Handle timezone-aware data
         data, tz_info = TimezoneHandler.prepare_timezone_data(data)
         metadata['_timezone_info'] = tz_info
-
+        
+        # Convert datetime to int64 if needed
         if epochdate or "datetime" in str(data.index.dtype):
             data = utils.datetime_to_int64(data)
-
+        
+        # Set index name if empty
         if data.index.name == "":
             data.index.name = "index"
-
-        if npartitions is None:
-            # Use optimized partitioning
-            is_time_series = pd.api.types.is_datetime64_any_dtype(data.index)
             
-            if is_time_series and len(data) > 10000:
-                # Use time-based partitioning for large time series
-                logger.debug("Using time-based partitioning for time series data")
-                if isinstance(data, pd.DataFrame):
-                    temp_dd = dd.from_pandas(data, npartitions=1)
-                    data, npartitions = optimize_time_series_partitions(temp_dd)
-                else:
-                    data, npartitions = optimize_time_series_partitions(data)
-            else:
-                # Use size-based partitioning
-                logger.debug("Using size-based partitioning")
-                npartitions = calculate_optimal_partitions(data)
-                
-                if isinstance(data, dd.DataFrame):
-                    data = data.repartition(npartitions=npartitions)
-                else:
-                    data = dd.from_pandas(data, npartitions=npartitions)
-        else:
+        return data, metadata
+
+    def _determine_partitioning(self, data, npartitions):
+        """Determine optimal partitioning strategy for the data."""
+        if npartitions is not None:
+            # Use provided partitions
             if not isinstance(data, dd.DataFrame):
                 data = dd.from_pandas(data, npartitions=npartitions)
+            return data, npartitions
+        
+        # Use optimized partitioning
+        is_time_series = pd.api.types.is_datetime64_any_dtype(data.index)
+        
+        if is_time_series and len(data) > 10000:
+            # Use time-based partitioning for large time series
+            logger.debug("Using time-based partitioning for time series data")
+            if isinstance(data, pd.DataFrame):
+                temp_dd = dd.from_pandas(data, npartitions=1)
+                data, npartitions = optimize_time_series_partitions(temp_dd)
+            else:
+                data, npartitions = optimize_time_series_partitions(data)
+        else:
+            # Use size-based partitioning
+            logger.debug("Using size-based partitioning")
+            npartitions = calculate_optimal_partitions(data)
+            
+            if isinstance(data, dd.DataFrame):
+                data = data.repartition(npartitions=npartitions)
+            else:
+                data = dd.from_pandas(data, npartitions=npartitions)
+                
+        return data, npartitions
 
+    def _write_to_storage(self, item, data, metadata, overwrite, reload_items, **kwargs):
+        """Write data to parquet and update metadata."""
         dd.to_parquet(data, self._item_path(item, as_string=True), overwrite=overwrite,
                       compression="snappy", engine="pyarrow", **kwargs)
 
@@ -305,6 +312,42 @@ class Collection(object):
         self.items.add(item)
         if reload_items:
             self._list_items_threaded()
+
+    def write(self, item, data, metadata={},
+              npartitions=None, overwrite=False,
+              epochdate=False, reload_items=False,
+              **kwargs):
+        """Write data to a PyStore item.
+        
+        Parameters
+        ----------
+        item : str
+            Name of the item to write
+        data : pd.DataFrame or Item
+            Data to write
+        metadata : dict
+            Additional metadata to store
+        npartitions : int, optional
+            Number of partitions
+        overwrite : bool, default False
+            Whether to overwrite existing item
+        epochdate : bool, default False
+            Convert datetime to epoch
+        reload_items : bool, default False
+            Reload item list after write
+        """
+        # Validate and prepare
+        self._validate_write_item(item, overwrite)
+        data = self._prepare_write_data(data)
+        
+        # Apply transformations
+        data, metadata = self._apply_data_transformations(data, metadata, epochdate)
+        
+        # Determine partitioning
+        data, npartitions = self._determine_partitioning(data, npartitions)
+        
+        # Write to storage
+        self._write_to_storage(item, data, metadata, overwrite, reload_items, **kwargs)
 
     def _validate_append_item(self, item):
         """Validate that item exists before appending."""
