@@ -22,6 +22,11 @@ import dask.dataframe as dd
 import pandas as pd
 
 from . import utils
+from .exceptions import ItemNotFoundError, SnapshotNotFoundError
+from .logger import get_logger
+from .dataframe import restore_dataframe_from_storage, DataTypeHandler, TimezoneHandler
+
+logger = get_logger(__name__)
 
 
 class Item(object):
@@ -29,9 +34,7 @@ class Item(object):
         return "PyStore.item <%s/%s>" % (self.collection, self.item)
 
     def __init__(self, item, datastore, collection,
-                 snapshot=None, filters=None, columns=None,
-                 engine="pyarrow"):
-        self.engine = engine
+                 snapshot=None, filters=None, columns=None):
         self.datastore = datastore
         self.collection = collection
         self.snapshot = snapshot
@@ -39,10 +42,10 @@ class Item(object):
 
         self._path = utils.make_path(datastore, collection, item)
         if not self._path.exists():
-            raise ValueError(
-                "Item `%s` doesn't exist. "
-                "Create it using collection.write(`%s`, data, ...)" % (
-                    item, item))
+            raise ItemNotFoundError(
+                f"Item '{item}' doesn't exist. "
+                f"Create it using collection.write('{item}', data, ...)"
+            )
         if snapshot:
             snap_path = utils.make_path(
                 datastore, collection, "_snapshots", snapshot)
@@ -50,27 +53,43 @@ class Item(object):
             self._path = utils.make_path(snap_path, item)
 
             if not utils.path_exists(snap_path):
-                raise ValueError("Snapshot `%s` doesn't exist" % snapshot)
+                raise SnapshotNotFoundError(f"Snapshot '{snapshot}' doesn't exist")
 
             if not utils.path_exists(self._path):
-                raise ValueError(
-                    "Item `%s` doesn't exist in this snapshot" % item)
+                raise ItemNotFoundError(
+                    f"Item '{item}' doesn't exist in snapshot '{snapshot}'"
+                )
 
         self.metadata = utils.read_metadata(self._path)
         self.data = dd.read_parquet(
-            self._path, engine=self.engine, filters=filters, columns=columns)
+            self._path, engine="pyarrow", filters=filters, columns=columns)
 
     def to_pandas(self, parse_dates=True):
         df = self.data.compute()
 
+        # Restore complex types if needed
+        if '_type_info' in self.metadata:
+            df = DataTypeHandler.deserialize_complex_types(df, self.metadata['_type_info'])
+        
+        # Restore MultiIndex and other transformations
+        if '_transform_metadata' in self.metadata:
+            df = restore_dataframe_from_storage(df, self.metadata['_transform_metadata'])
+        
+        # Restore timezone information
+        if '_timezone_info' in self.metadata:
+            df = TimezoneHandler.restore_timezone_data(df, self.metadata['_timezone_info'])
+
         if parse_dates and "datetime" not in str(df.index.dtype):
-            df.index.name = ""
-            if str(df.index.dtype) == "float64":
-                df.index = pd.to_datetime(df.index, unit="s",
-                                          infer_datetime_format=True)
-            elif df.index.values[0] > 1e6:
-                df.index = pd.to_datetime(df.index,
-                                          infer_datetime_format=True)
+            if not isinstance(df.index, pd.MultiIndex):  # Only for single index
+                # Preserve original index name
+                original_name = df.index.name
+                if str(df.index.dtype) == "float64":
+                    df.index = pd.to_datetime(df.index, unit="s")
+                elif len(df) > 0 and df.index.values[0] > 1e6:
+                    df.index = pd.to_datetime(df.index)
+                # Restore original name if it was None
+                if original_name is None:
+                    df.index.name = None
 
         return df
 

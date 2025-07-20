@@ -28,11 +28,7 @@ from dask import dataframe as dd
 from dask.distributed import Client
 
 
-try:
-    from pathlib import Path
-    Path().expanduser()
-except (ImportError, AttributeError):
-    from pathlib2 import Path
+from pathlib import Path
 
 from . import config
 
@@ -102,9 +98,11 @@ def read_metadata(path):
 
 def write_metadata(path, metadata={}):
     """ use this to construct paths for future storage support """
-    now = datetime.now()
-    metadata["_updated"] = now.strftime("%Y-%m-%d %H:%I:%S.%f")
+    now = datetime.now(timezone.utc)  # Use UTC for consistency
+    metadata["_updated"] = now.strftime("%Y-%m-%d %H:%M:%S.%f")  # Correctly formats minutes using %M
     meta_file = make_path(path, "pystore_metadata.json")
+    # Ensure parent directory exists
+    meta_file.parent.mkdir(parents=True, exist_ok=True)
     with meta_file.open("w") as f:
         json.dump(metadata, f, ensure_ascii=False)
 
@@ -121,24 +119,34 @@ def get_path(*args):
     return Path(config.DEFAULT_PATH, *args)
 
 
-def set_path(path):
+def set_path(path=None):
+    """Set the base path for PyStore data
+    
+    Parameters
+    ----------
+    path : str or Path, optional
+        Base path for data storage. Defaults to ~/pystore
+    """
     if path is None:
-        path = get_path()
-
+        path = Path.home() / "pystore"
     else:
-        path = path.rstrip("/").rstrip("\\").rstrip(" ")
-        if "://" in path and "file://" not in path:
-            raise ValueError(
-                "PyStore currently only works with local file system")
-
-    config.DEFAULT_PATH = path
-    path = get_path()
-
-    # if path does not exist - create it
-    if not path_exists(get_path()):
-        os.makedirs(get_path())
-
-    return get_path()
+        # Handle both string and Path objects
+        path = Path(path).expanduser().resolve()
+    
+    # Validate path
+    path_str = str(path)
+    if "://" in path_str and "file://" not in path_str:
+        raise ValueError("PyStore currently only works with local file system")
+    
+    # Create directory if it doesn't exist
+    try:
+        path.mkdir(parents=True, exist_ok=True)
+    except PermissionError:
+        raise PermissionError(f"Cannot create directory at {path}")
+    
+    # Store as string for compatibility
+    config.DEFAULT_PATH = str(path)
+    return path
 
 
 def list_stores():
@@ -148,8 +156,14 @@ def list_stores():
 
 
 def delete_store(store):
-    shutil.rmtree(get_path(store))
-    return True
+    store_path = get_path(store)
+    if not path_exists(store_path):
+        raise ValueError(f"Store '{store}' does not exist")
+    try:
+        shutil.rmtree(store_path)
+        return True
+    except Exception as e:
+        raise RuntimeError(f"Failed to delete store '{store}': {str(e)}") from e
 
 
 def delete_stores():

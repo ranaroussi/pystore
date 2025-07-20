@@ -30,7 +30,7 @@ with codecs.open(path.join(here, 'README.rst'), encoding='utf-8') as f:
 
 setup(
     name='PyStore',
-    version="0.1.24",
+    version="1.0.0",
     description='Fast data store for Pandas timeseries data',
     long_description=long_description,
     url='https://github.com/ranaroussi/pystore',
@@ -49,22 +49,24 @@ setup(
         'Topic :: Software Development :: Libraries',
         'Topic :: Software Development :: Libraries :: Python Modules',
 
-        'Programming Language :: Python :: 2.7',
-        'Programming Language :: Python :: 3.5',
-        'Programming Language :: Python :: 3.6',
-        'Programming Language :: Python :: 3.7',
-        'Programming Language :: Python :: 3.8',
         'Programming Language :: Python :: 3.9',
+        'Programming Language :: Python :: 3.10',
+        'Programming Language :: Python :: 3.11',
+        'Programming Language :: Python :: 3.12',
     ],
-    platforms=['linux', 'unix', 'macOS'],
+    platforms=['linux', 'unix', 'macOS', 'windows'],
     keywords='dask, datastore, flatfile, pystore',
     packages=find_packages(exclude=['contrib', 'docs', 'tests', 'examples']),
-    install_requires=['python-snappy', 'multitasking', 'toolz', 'partd',
-                      'cloudpickle', 'distributed', 'pandas', 'numpy',
-                      'pyarrow', 'dask[dataframe]'],
-    entry_points={
-        'console_scripts': [
-            'sample=sample:main',
-        ],
-    },
+    install_requires=[
+        'pandas>=2.0.0,<3.0.0',
+        'pyarrow>=15.0.0',
+        'dask[complete]>=2024.1.0',
+        'numpy>=1.24.0,<2.0.0',
+        'fsspec>=2023.1.0',
+        'toolz>=0.12.0',
+        'cloudpickle>=3.0.0',
+        'python-snappy>=0.6.1',
+        'multitasking>=0.0.11',
+        'partd>=1.4.0',
+    ],
 )
