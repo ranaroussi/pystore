@@ -36,6 +36,11 @@ from .exceptions import (
 )
 from .logger import get_logger
 from .partition import calculate_optimal_partitions, optimize_time_series_partitions
+from .dataframe import (
+    prepare_dataframe_for_storage, restore_dataframe_from_storage,
+    validate_dataframe_for_storage, MultiIndexHandler, DataTypeHandler,
+    TimezoneHandler
+)
 
 logger = get_logger(__name__)
 
@@ -171,6 +176,24 @@ class Collection(object):
         else:
             # work on copy
             data = data.copy()
+
+        # Validate DataFrame before storage
+        validate_dataframe_for_storage(data)
+        
+        # Handle MultiIndex and complex types
+        data, transform_metadata = prepare_dataframe_for_storage(data)
+        
+        # Store transformation metadata
+        metadata = metadata.copy()
+        metadata['_transform_metadata'] = transform_metadata
+        
+        # Handle complex data types
+        data, type_info = DataTypeHandler.serialize_complex_types(data)
+        metadata['_type_info'] = type_info
+        
+        # Handle timezone-aware data
+        data, tz_info = TimezoneHandler.prepare_timezone_data(data)
+        metadata['_timezone_info'] = tz_info
 
         if epochdate or "datetime" in str(data.index.dtype):
             data = utils.datetime_to_int64(data)

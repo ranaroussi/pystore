@@ -76,3 +76,8 @@ class ConfigurationError(PyStoreError):
 class ValidationError(PyStoreError):
     """Raised when data validation fails"""
     pass
+
+
+class TransactionError(StorageError):
+    """Raised when transaction operations fail"""
+    pass
