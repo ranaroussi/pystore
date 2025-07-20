@@ -99,7 +99,7 @@ def read_metadata(path):
 def write_metadata(path, metadata={}):
     """ use this to construct paths for future storage support """
     now = datetime.now(timezone.utc)  # Use UTC for consistency
-    metadata["_updated"] = now.strftime("%Y-%m-%d %H:%M:%S.%f")  # Fix: %M for minutes, not %I
+    metadata["_updated"] = now.strftime("%Y-%m-%d %H:%M:%S.%f")  # Correctly formats minutes using %M
     meta_file = make_path(path, "pystore_metadata.json")
     # Ensure parent directory exists
     meta_file.parent.mkdir(parents=True, exist_ok=True)
