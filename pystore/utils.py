@@ -28,11 +28,7 @@ from dask import dataframe as dd
 from dask.distributed import Client
 
 
-try:
-    from pathlib import Path
-    Path().expanduser()
-except (ImportError, AttributeError):
-    from pathlib2 import Path
+from pathlib import Path
 
 from . import config
 

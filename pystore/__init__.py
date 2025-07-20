@@ -18,11 +18,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-""" temp fix for fastparquet 0.3.2 and numba 0.45.1"""
-try:
-    import numba as _
-except ImportError:
-    pass
+# PyArrow is now the only supported engine
 
 from .store import store
 from .utils import (
@@ -31,7 +27,7 @@ from .utils import (
     set_partition_size, get_partition_size,
     list_stores, delete_store, delete_stores)
 
-__version__ = "0.1.24"
+__version__ = "1.0.0-dev"
 __author__ = "Ran Aroussi"
 
 __all__ = ["store", "read_csv", "get_path", "set_path",

@@ -33,8 +33,7 @@ class Collection(object):
     def __repr__(self):
         return "PyStore.collection <%s>" % self.collection
 
-    def __init__(self, collection, datastore, engine="pyarrow"):
-        self.engine = engine
+    def __init__(self, collection, datastore):
         self.datastore = datastore
         self.collection = collection
         self.items = self.list_items()
@@ -74,11 +73,11 @@ class Collection(object):
 
     def item(self, item, snapshot=None, filters=None, columns=None):
         return Item(item, self.datastore, self.collection,
-                    snapshot, filters, columns, engine=self.engine)
+                    snapshot, filters, columns)
 
     def index(self, item, last=False):
         data = dd.read_parquet(self._item_path(item, as_string=True),
-                               columns="index", engine=self.engine)
+                               columns="index", engine="pyarrow")
         if not last:
             return data.index.compute()
 
@@ -120,8 +119,6 @@ class Collection(object):
 
         if epochdate or "datetime" in str(data.index.dtype):
             data = utils.datetime_to_int64(data)
-            if (1 == data.index.nanosecond).any() and "times" not in kwargs:
-                kwargs["times"] = "int96"
 
         if data.index.name == "":
             data.index.name = "index"
@@ -141,7 +138,7 @@ class Collection(object):
                 data = dd.from_pandas(data, npartitions=npartitions)
 
         dd.to_parquet(data, self._item_path(item, as_string=True), overwrite=overwrite,
-                      compression="snappy", engine=self.engine, **kwargs)
+                      compression="snappy", engine="pyarrow", **kwargs)
 
         utils.write_metadata(utils.make_path(
             self.datastore, self.collection, item), metadata)
@@ -166,7 +163,7 @@ class Collection(object):
                              any(data.index.nanosecond) > 0):
                 data = utils.datetime_to_int64(data)
             old_index = dd.read_parquet(self._item_path(item, as_string=True),
-                                        columns=[], engine=self.engine
+                                        columns=[], engine="pyarrow"
                                         ).index.compute()
             data = data[~data.index.isin(old_index)]
         except Exception:
@@ -181,7 +178,7 @@ class Collection(object):
         # combine old dataframe with new
         current = self.item(item)
         new = dd.from_pandas(data, npartitions=1)
-        combined = dd.concat([current.data, new])
+        combined = dd.concat([current.data, new], axis=0)
 
         if npartitions is None:
             memusage = combined.memory_usage(deep=True).sum()
