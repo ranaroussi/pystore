@@ -306,113 +306,106 @@ class Collection(object):
         if reload_items:
             self._list_items_threaded()
 
-    def append(self, item, data, npartitions=None, epochdate=False,
-               threaded=False, reload_items=False, **kwargs):
-
+    def _validate_append_item(self, item):
+        """Validate that item exists before appending."""
         if not utils.path_exists(self._item_path(item)):
             raise ValueError(
                 """Item do not exists. Use `<collection>.write(...)`""")
 
-        # work on copy
+    def _prepare_append_data(self, data):
+        """Prepare data for appending by copying and setting index name."""
         data = data.copy()
-
         if data.index.name == "":
             data.index.name = "index"
+        return data
 
-        # Get current item for metadata
-        current = self.item(item)
-        
-        # Handle timezone - convert to UTC for consistent storage
+    def _convert_timezone_to_utc(self, data):
+        """Convert timezone-aware index to UTC for consistent storage."""
         if hasattr(data.index, 'tz') and data.index.tz is not None:
             logger.debug(f"Converting index timezone from {data.index.tz} to UTC for consistent append")
             data.index = data.index.tz_convert('UTC')
+        return data
+
+    def _handle_schema_evolution(self, item, data, current_df):
+        """Handle schema evolution if enabled for the item."""
+        if item not in self._schema_evolutions:
+            return None, data
         
-        # Handle schema evolution if enabled
-        evolved_current_df = None
-        if item in self._schema_evolutions:
-            from .schema_evolution import Schema
-            evolution = self._schema_evolutions[item]
-            current_df = current.to_pandas()
-            
-            # Check and handle schema changes
-            old_schema = Schema.from_dataframe(current_df)
-            new_schema = Schema.from_dataframe(data)
-            if evolution.validate_evolution(old_schema, new_schema):
-                # Evolve the existing data to match new schema
-                target_schema = evolution.get_target_schema(current_df, data)
-                evolved_current_df = evolution.evolve_dataframe(current_df, target_schema)
-                data = evolution.evolve_dataframe(data, target_schema)
+        from .schema_evolution import Schema
+        evolution = self._schema_evolutions[item]
         
-        # Filter duplicates unless schema has evolved
-        if evolved_current_df is None:
-            try:
-                if epochdate or ("datetime" in str(data.index.dtype) and
-                                 any(data.index.nanosecond) > 0):
-                    data = utils.datetime_to_int64(data)
-                old_index = dd.read_parquet(self._item_path(item, as_string=True),
-                                            columns=[], engine="pyarrow"
-                                            ).index.compute()
-                data = data[~data.index.isin(old_index)]
-            except Exception:
-                pass
-            
-            if data.empty:
-                logger.warning(f"No new data to append to item '{item}' after filtering duplicates")
-                return
-        
-        # combine old dataframe with new
+        # Check and handle schema changes
+        old_schema = Schema.from_dataframe(current_df)
+        new_schema = Schema.from_dataframe(data)
+        if evolution.validate_evolution(old_schema, new_schema):
+            # Evolve the existing data to match new schema
+            target_schema = evolution.get_target_schema(current_df, data)
+            evolved_current_df = evolution.evolve_dataframe(current_df, target_schema)
+            data = evolution.evolve_dataframe(data, target_schema)
+            return evolved_current_df, data
+        return None, data
+
+    def _filter_duplicate_indices(self, item, data, epochdate):
+        """Filter out duplicate indices from new data."""
+        try:
+            if epochdate or ("datetime" in str(data.index.dtype) and
+                             any(data.index.nanosecond) > 0):
+                data = utils.datetime_to_int64(data)
+            old_index = dd.read_parquet(self._item_path(item, as_string=True),
+                                        columns=[], engine="pyarrow"
+                                        ).index.compute()
+            data = data[~data.index.isin(old_index)]
+        except Exception:
+            pass
+        return data
+
+    def _combine_dataframes(self, current, data, evolved_current_df):
+        """Combine current and new dataframes, handling schema evolution and MultiIndex."""
         if evolved_current_df is not None:
             # Schema has evolved - we need to handle this specially
-            logger.info(f"Schema evolution detected for item '{item}'")
-            
-            # Combine evolved data
+            logger.info(f"Schema evolution detected")
             current_dd = dd.from_pandas(evolved_current_df, npartitions=1)
             new = dd.from_pandas(data, npartitions=1)
-            combined = dd.concat([current_dd, new], axis=0)
+            return dd.concat([current_dd, new], axis=0)
         else:
             # Regular append without evolution
-            try:
-                new = dd.from_pandas(data, npartitions=1)
-                combined = dd.concat([current.data, new], axis=0)
-            except NotImplementedError as e:
-                if "isna is not defined for MultiIndex" in str(e):
-                    # Workaround for dask MultiIndex issue
-                    # Reset index temporarily for dask compatibility
-                    data_for_dask = data.copy()
-                    current_pandas = current.to_pandas()
-                    
-                    # Reset indices - MultiIndex becomes regular columns
-                    data_for_dask = data_for_dask.reset_index()
-                    current_pandas = current_pandas.reset_index()
-                    
-                    # Create dask dataframes
-                    new = dd.from_pandas(data_for_dask, npartitions=1)
-                    current_dd = dd.from_pandas(current_pandas, npartitions=1)
-                    combined = dd.concat([current_dd, new], axis=0)
-                    
-                    # Don't set index back - let write handle it via prepare_dataframe_for_storage
-                else:
-                    raise
+            return self._combine_with_multiindex_workaround(current, data)
 
+    def _combine_with_multiindex_workaround(self, current, data):
+        """Combine dataframes with workaround for Dask MultiIndex issue."""
+        try:
+            new = dd.from_pandas(data, npartitions=1)
+            return dd.concat([current.data, new], axis=0)
+        except NotImplementedError as e:
+            if "isna is not defined for MultiIndex" in str(e):
+                # Workaround for dask MultiIndex issue
+                data_for_dask = data.copy().reset_index()
+                current_pandas = current.to_pandas().reset_index()
+                
+                new = dd.from_pandas(data_for_dask, npartitions=1)
+                current_dd = dd.from_pandas(current_pandas, npartitions=1)
+                return dd.concat([current_dd, new], axis=0)
+            else:
+                raise
+
+    def _calculate_partitions(self, combined, npartitions):
+        """Calculate optimal number of partitions based on memory usage."""
         if npartitions is None:
             memusage = combined.memory_usage(deep=True).sum()
             if isinstance(combined, dd.DataFrame):
                 memusage = memusage.compute()
             npartitions = int(1 + memusage // config.PARTITION_SIZE)
+        return npartitions
 
-        combined = combined.repartition(npartitions=npartitions).drop_duplicates(
-            keep="last"
-            )
+    def _write_temporary_item(self, item, combined, data, current, npartitions, 
+                              threaded, epochdate, reload_items, **kwargs):
+        """Write combined data to temporary item."""
         tmp_item = "__" + item
-        # write data
         write = self.write_threaded if threaded else self.write
         
         # Check if we need to preserve MultiIndex metadata
         if hasattr(data, 'index') and isinstance(data.index, pd.MultiIndex):
-            # This was MultiIndex data, ensure metadata reflects this
             metadata = current.metadata.copy()
-            # The prepare_dataframe_for_storage should handle this, but we need to ensure
-            # it recognizes this as MultiIndex data even after reset_index
             write(tmp_item, combined, npartitions=npartitions,
                   metadata=metadata, overwrite=False,
                   epochdate=epochdate, reload_items=reload_items, **kwargs)
@@ -420,16 +413,71 @@ class Collection(object):
             write(tmp_item, combined, npartitions=npartitions,
                   metadata=current.metadata, overwrite=False,
                   epochdate=epochdate, reload_items=reload_items, **kwargs)
+        return tmp_item
 
+    def _replace_item_with_temporary(self, item, tmp_item):
+        """Replace the original item with the temporary item."""
         try:
             multitasking.wait_for_tasks()
-            self.delete_item(item=item,reload_items=False)
-            shutil.move(self._item_path(tmp_item),self._item_path(item))
+            self.delete_item(item=item, reload_items=False)
+            shutil.move(self._item_path(tmp_item), self._item_path(item))
             self._list_items_threaded()
         except Exception as errn:
             raise ValueError(
                 "Error: %s" % repr(errn)
             ) from errn
+
+    def append(self, item, data, npartitions=None, epochdate=False,
+               threaded=False, reload_items=False, **kwargs):
+        """Append data to an existing item.
+        
+        Parameters
+        ----------
+        item : str
+            Name of the item to append to
+        data : pandas.DataFrame
+            Data to append
+        npartitions : int, optional
+            Number of partitions for the data
+        epochdate : bool, default False
+            Convert datetime to epoch
+        threaded : bool, default False
+            Use threaded write
+        reload_items : bool, default False
+            Reload item list after write
+        """
+        # Validate and prepare
+        self._validate_append_item(item)
+        data = self._prepare_append_data(data)
+        current = self.item(item)
+        
+        # Handle timezone
+        data = self._convert_timezone_to_utc(data)
+        
+        # Handle schema evolution
+        current_df = current.to_pandas()
+        evolved_current_df, data = self._handle_schema_evolution(item, data, current_df)
+        
+        # Filter duplicates unless schema has evolved
+        if evolved_current_df is None:
+            data = self._filter_duplicate_indices(item, data, epochdate)
+            if data.empty:
+                logger.warning(f"No new data to append to item '{item}' after filtering duplicates")
+                return
+        
+        # Combine dataframes
+        combined = self._combine_dataframes(current, data, evolved_current_df)
+        
+        # Calculate partitions and prepare data
+        npartitions = self._calculate_partitions(combined, npartitions)
+        combined = combined.repartition(npartitions=npartitions).drop_duplicates(keep="last")
+        
+        # Write to temporary item and replace
+        tmp_item = self._write_temporary_item(
+            item, combined, data, current, npartitions, 
+            threaded, epochdate, reload_items, **kwargs
+        )
+        self._replace_item_with_temporary(item, tmp_item)
 
     def create_snapshot(self, snapshot=None):
         if snapshot:
