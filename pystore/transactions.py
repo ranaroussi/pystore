@@ -105,7 +105,7 @@ class Transaction:
     
     def _backup_item(self, item: str):
         """Create backup of existing item"""
-        item_path = self.collection._item_path(item)
+        item_path = self.collection.get_item_path(item)
         if utils.path_exists(item_path):
             backup_path = os.path.join(self.temp_dir, f"backup_{item}")
             shutil.copytree(item_path, backup_path)

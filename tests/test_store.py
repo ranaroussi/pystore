@@ -64,18 +64,27 @@ class TestStore:
     
     def test_path_handling(self):
         """Test various path input formats"""
-        # Test with string path
-        path1 = pystore.set_path("/tmp/pystore_test1")
-        assert isinstance(path1, Path)
+        # Create secure temporary directories
+        temp_dir1 = tempfile.mkdtemp(prefix="pystore_test1_")
+        temp_dir2 = tempfile.mkdtemp(prefix="pystore_test2_")
         
-        # Test with Path object
-        path2 = pystore.set_path(Path("/tmp/pystore_test2"))
-        assert isinstance(path2, Path)
-        
-        # Test with tilde expansion
-        path3 = pystore.set_path("~/pystore_test3")
-        assert isinstance(path3, Path)
-        assert str(path3).startswith(str(Path.home()))
+        try:
+            # Test with string path
+            path1 = pystore.set_path(temp_dir1)
+            assert isinstance(path1, Path)
+            
+            # Test with Path object
+            path2 = pystore.set_path(Path(temp_dir2))
+            assert isinstance(path2, Path)
+            
+            # Test with tilde expansion
+            path3 = pystore.set_path("~/pystore_test3")
+            assert isinstance(path3, Path)
+            assert str(path3).startswith(str(Path.home()))
+        finally:
+            # Clean up temporary directories
+            shutil.rmtree(temp_dir1, ignore_errors=True)
+            shutil.rmtree(temp_dir2, ignore_errors=True)
     
     def test_invalid_path(self):
         """Test handling of invalid paths"""

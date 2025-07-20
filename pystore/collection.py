@@ -59,11 +59,29 @@ class Collection(object):
         self._validator = None  # Data validator
         self._schema_evolutions = {}  # Schema evolution per item
 
-    def _item_path(self, item, as_string=False):
+    def get_item_path(self, item, as_string=False):
+        """Get the filesystem path for an item.
+        
+        Parameters
+        ----------
+        item : str
+            The item name
+        as_string : bool, optional
+            Return path as string instead of Path object
+            
+        Returns
+        -------
+        pathlib.Path or str
+            The filesystem path to the item
+        """
         p = utils.make_path(self.datastore, self.collection, item)
         if as_string:
             return str(p)
         return p
+    
+    def _item_path(self, item, as_string=False):
+        """Deprecated: Use get_item_path instead"""
+        return self.get_item_path(item, as_string)
 
     @multitasking.task
     def _list_items_threaded(self, **kwargs):

@@ -6,3 +6,4 @@ PyStore.egg-info
 .DS_Store
 /.vscode
 /build
+/logs
