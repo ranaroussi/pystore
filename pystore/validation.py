@@ -350,14 +350,15 @@ def create_financial_validator(price_columns: List[str] = None,
     # OHLC relationship validation
     def check_ohlc_relationship(df):
         if all(col in df.columns for col in ['open', 'high', 'low', 'close']):
-            # High >= Low
-            if (df['high'] < df['low']).any():
-                return False
-            # High >= Open, Close
-            if (df['high'] < df['open']).any() or (df['high'] < df['close']).any():
-                return False
-            # Low <= Open, Close
-            if (df['low'] > df['open']).any() or (df['low'] > df['close']).any():
+            # Combine all conditions into a single vectorized operation
+            invalid_rows = (
+                (df['high'] < df['low']) | 
+                (df['high'] < df['open']) | 
+                (df['high'] < df['close']) | 
+                (df['low'] > df['open']) | 
+                (df['low'] > df['close'])
+            )
+            if invalid_rows.any():
                 return False
         return True
     
