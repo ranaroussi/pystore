@@ -90,9 +90,14 @@ def prepare_dataframe_for_storage(df: pd.DataFrame) -> Tuple[pd.DataFrame, dict]
                                 return None
                             elif isinstance(x, np.ndarray):
                                 return json.dumps(x.tolist())
+                            elif isinstance(x, (np.complex64, np.complex128)):
+                                return json.dumps({"real": x.real, "imag": x.imag})
+                            elif isinstance(x, np.datetime64):
+                                return json.dumps(str(x.astype('M8[ms]').item()))
                             else:
                                 return json.dumps(x)
-                        except:
+                        except (TypeError, ValueError) as e:
+                            logger.error(f"Failed to serialize object: {e}")
                             return None
                     df[col] = df[col].apply(safe_json_dumps)
                 elif isinstance(sample, pd.DataFrame):
