@@ -1,6 +1,13 @@
 Change Log
 ===========
 
+1.0.1 (2025-07-22)
+------------------
+
+**Dependency Update**
+
+- Updated numpy requirement from <2.0.0,>=1.24.0 to >=1.24.0,<3.0.0 to support numpy 3.0
+
 1.0.0 (2025 Release)
 --------------------
 

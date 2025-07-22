@@ -30,7 +30,7 @@ with codecs.open(path.join(here, 'README.rst'), encoding='utf-8') as f:
 
 setup(
     name='PyStore',
-    version="1.0.0",
+    version="1.0.1",
     description='Fast data store for Pandas timeseries data',
     long_description=long_description,
     url='https://github.com/ranaroussi/pystore',
@@ -61,7 +61,7 @@ setup(
         'pandas>=2.0.0,<3.0.0',
         'pyarrow>=15.0.0',
         'dask[complete]>=2024.1.0',
-        'numpy>=1.24.0,<2.0.0',
+        'numpy>=1.24.0,<3.0.0',
         'fsspec>=2023.1.0',
         'toolz>=0.12.0',
         'cloudpickle>=3.0.0',

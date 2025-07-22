@@ -64,7 +64,7 @@ from .validation import (
 )
 from .schema_evolution import SchemaEvolution, EvolutionStrategy
 
-__version__ = "1.0.0"
+__version__ = "1.0.1"
 __author__ = "Ran Aroussi"
 
 __all__ = [
