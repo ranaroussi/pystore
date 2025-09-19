@@ -19,7 +19,7 @@
 # limitations under the License.
 
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 import json
 import shutil
 import pandas as pd
