@@ -1,0 +1,168 @@
+{
+  "issue": "CSP-1",
+  "summary": "Add rate limiting middleware to PyStore API server",
+  "description": "Implement rate limiting middleware for the PyStore REST API server to prevent abuse and ensure fair resource utilization. Since no API server currently exists in the codebase, this plan includes creating the FastAPI server with endpoints, then adding rate limiting middleware on top.",
+  "approach": "Create a FastAPI-based REST API server exposing PyStore functionality (stores, collections, items, snapshots), then integrate slowapi for rate limiting with configurable per-endpoint limits.",
+  "steps": [
+    {
+      "step": 1,
+      "description": "Add dependencies to requirements.txt",
+      "details": "Add fastapi, uvicorn, and slowapi to requirements.txt. fastapi will serve as the web framework, uvicorn as the ASGI server, and slowapi for rate limiting.",
+      "files": ["requirements.txt"],
+      "estimatedHours": 0.5
+    },
+    {
+      "step": 2,
+      "description": "Create pystore/server.py with FastAPI application",
+      "details": "Create the main API server file with FastAPI app initialization, CORS configuration, and health check endpoint. Include middleware stack setup for rate limiting to be added in subsequent steps.",
+      "files": ["pystore/server.py"],
+      "estimatedHours": 2
+    },
+    {
+      "step": 3,
+      "description": "Implement store management endpoints",
+      "details": "Add endpoints for listing stores (GET /stores), creating stores (POST /stores/{store_name}), and deleting stores (DELETE /stores/{store_name}). Use pystore.list_stores(), store creation, and delete_store functions.",
+      "files": ["pystore/server.py"],
+      "estimatedHours": 1.5
+    },
+    {
+      "step": 4,
+      "description": "Implement collection management endpoints",
+      "details": "Add endpoints for listing collections (GET /stores/{store}/collections), creating collections (POST /stores/{store}/collections/{collection}), and deleting collections (DELETE /stores/{store}/collections/{collection}).",
+      "files": ["pystore/server.py"],
+      "estimatedHours": 1.5
+    },
+    {
+      "step": 5,
+      "description": "Implement item data endpoints",
+      "details": "Add endpoints for listing items (GET /stores/{store}/collections/{collection}/items), reading item data (GET /stores/{store}/collections/{collection}/items/{item}), writing item data (POST /stores/{store}/collections/{collection}/items/{item}), and appending data (POST /stores/{store}/collections/{collection}/items/{item}/append). Support query parameters for metadata filtering and column/filter selection.",
+      "files": ["pystore/server.py"],
+      "estimatedHours": 3
+    },
+    {
+      "step": 6,
+      "description": "Implement snapshot endpoints",
+      "details": "Add endpoints for listing snapshots (GET /stores/{store}/collections/{collection}/snapshots), creating snapshots (POST /stores/{store}/collections/{collection}/snapshots/{snapshot}), and deleting snapshots (DELETE /stores/{store}/collections/{collection}/snapshots/{snapshot}).",
+      "files": ["pystore/server.py"],
+      "estimatedHours": 1
+    },
+    {
+      "step": 7,
+      "description": "Implement metadata endpoints",
+      "details": "Add endpoints for getting item metadata (GET /stores/{store}/collections/{collection}/items/{item}/metadata) and updating metadata (PUT /stores/{store}/collections/{collection}/items/{item}/metadata).",
+      "files": ["pystore/server.py"],
+      "estimatedHours": 1
+    },
+    {
+      "step": 8,
+      "description": "Initialize rate limiter and configure limits",
+      "details": "Initialize slowapi RateLimiter in pystore/server.py. Define default rate limits (e.g., 60 requests/minute for general endpoints, 10 requests/minute for write operations). Create a configuration structure for rate limits that can be customized.",
+      "files": ["pystore/server.py"],
+      "estimatedHours": 1
+    },
+    {
+      "step": 9,
+      "description": "Apply rate limiting to endpoints",
+      "details": "Add @limiter.limit decorators to all endpoints. Different limits for different endpoint types: read operations (100/min), write operations (20/min), delete operations (10/min), list operations (60/min). Include X-RateLimit-* headers in responses.",
+      "files": ["pystore/server.py"],
+      "estimatedHours": 1.5
+    },
+    {
+      "step": 10,
+      "description": "Add custom rate limit exceeded handler",
+      "details": "Implement custom exception handler for rate limit exceeded (RateLimitExceeded). Return proper HTTP 429 status code with JSON error message and Retry-After header.",
+      "files": ["pystore/server.py"],
+      "estimatedHours": 0.5
+    },
+    {
+      "step": 11,
+      "description": "Create server configuration module",
+      "details": "Create pystore/server_config.py to store server configuration including rate limit settings, host, port, CORS settings, and storage path. Use environment variables with sensible defaults.",
+      "files": ["pystore/server_config.py"],
+      "estimatedHours": 0.5
+    },
+    {
+      "step": 12,
+      "description": "Create unit tests for server endpoints",
+      "details": "Create tests/test_server.py with TestClient tests for all endpoints. Test successful operations, error cases (404 for missing items), and verify response formats.",
+      "files": ["tests/test_server.py"],
+      "estimatedHours": 2
+    },
+    {
+      "step": 13,
+      "description": "Create rate limiting tests",
+      "details": "Add tests in tests/test_rate_limiter.py to verify rate limiting behavior. Test that requests are properly limited after threshold, verify 429 responses, test different limits per endpoint type, and verify rate limit headers.",
+      "files": ["tests/test_rate_limiter.py"],
+      "estimatedHours": 2
+    },
+    {
+      "step": 14,
+      "description": "Add CLI command for starting server",
+      "details": "Update setup.py entry_points to add 'pystore-server' console script that runs uvicorn with the FastAPI app. Create CLI module pystore/cli.py if needed.",
+      "files": ["setup.py", "pystore/cli.py"],
+      "estimatedHours": 0.5
+    },
+    {
+      "step": 15,
+      "description": "Update README documentation",
+      "details": "Add documentation for the API server in README.rst including usage examples, rate limiting configuration, endpoint reference, and CLI command.",
+      "files": ["README.rst"],
+      "estimatedHours": 1
+    }
+  ],
+  "testStrategy": "Unit tests will use FastAPI TestClient for endpoint testing. Rate limiting tests will verify 429 responses after threshold is exceeded. Integration tests will verify end-to-end functionality with actual PyStore operations. Tests will be run with pytest.",
+  "risks": [
+    {
+      "risk": "Rate limiting state storage",
+      "description": "Default slowapi uses in-memory storage which doesn't work with multiple workers. For production, need Redis-backed storage.",
+      "severity": "medium",
+      "mitigation": "Add optional Redis support for distributed rate limiting. Document limitation for single-worker development."
+    },
+    {
+      "risk": "Large data handling in API",
+      "description": "PyStore can handle large datasets but HTTP responses have size limits. Streaming responses may be needed.",
+      "severity": "medium",
+      "mitigation": "Implement pagination for item lists, limit response size for data endpoints, add Accept-Ranges header support."
+    },
+    {
+      "risk": "Concurrent write operations",
+      "description": "Multiple concurrent writes to the same item could cause conflicts.",
+      "severity": "low",
+      "mitigation": "PyStore's append method handles this, but consider adding optimistic locking in API."
+    },
+    {
+      "risk": "Storage path configuration",
+      "description": "API server needs to know the PyStore storage path. Defaults may not match user's configuration.",
+      "severity": "low",
+      "mitigation": "Support PYSTORE_PATH environment variable and explicit configuration option."
+    }
+  ],
+  "estimatedFiles": {
+    "new": [
+      "pystore/server.py",
+      "pystore/server_config.py",
+      "pystore/cli.py",
+      "tests/test_server.py",
+      "tests/test_rate_limiter.py"
+    ],
+    "modified": [
+      "requirements.txt",
+      "setup.py",
+      "README.rst"
+    ]
+  },
+  "dependencies": {
+    "runtime": [
+      "fastapi>=0.100.0",
+      "uvicorn[standard]>=0.22.0",
+      "slowapi>=0.1.7"
+    ],
+    "testing": [
+      "pytest>=7.0.0",
+      "httpx>=0.24.0"
+    ],
+    "optional": [
+      "redis>=4.0.0"
+    ]
+  }
+}

@@ -8,3 +8,12 @@ numpy>=1.15.4
 fastparquet>=0.3.0
 dask>=1.2.2
 multitasking>=0.0.9
+
+# Server dependencies
+fastapi>=0.100.0
+uvicorn[standard]>=0.22.0
+slowapi>=0.1.7
+
+# Testing dependencies
+pytest>=7.0.0
+httpx>=0.24.0
