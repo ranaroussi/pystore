@@ -8,3 +8,5 @@ numpy>=1.15.4
 fastparquet>=0.3.0
 dask>=1.2.2
 multitasking>=0.0.9
+flask>=1.0.0
+flask-cors>=3.0.0
