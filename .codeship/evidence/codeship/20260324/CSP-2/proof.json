@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "appName": "codeship",
+  "run": "CSP-2",
+  "createdAt": "2026-03-24T21:51:13.142Z",
+  "entries": [
+    {
+      "timestamp": "2026-03-24T21:51:17.937Z",
+      "mode": "terminal",
+      "label": "tests",
+      "command": "pytest tests/ -v",
+      "duration": 196,
+      "artifact": "tests-215113.mp4",
+      "description": "Test run for CSP-2"
+    }
+  ]
+}

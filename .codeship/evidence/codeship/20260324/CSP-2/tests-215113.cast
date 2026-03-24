@@ -1,0 +1,7 @@
+{"version":2,"width":120,"height":30,"timestamp":1774389073,"env":{"SHELL":"/bin/sh","TERM":"xterm-256color"}}
+[0,"o","\u001b[1m================================================= test session starts ==================================================\u001b[0m\nplatform darwin -- Python 3.10.18, pytest-8.4.2, pluggy-1.5.0 -- /Users/ran/opt/anaconda3/bin/python\n"]
+[0.14800000000000008,"o","cachedir: .pytest_cache\nhypothesis profile 'default' -> database=DirectoryBasedExampleDatabase(PosixPath('/Users/ran/Projects/ralph/.hypothesis/examples'))\nrootdir: /Users/ran/Projects/ralph\nplugins: cov-6.0.0, asyncio-1.2.0, anyio-4.12.0, typeguard-3.0.2, mock-3.10.0, requests-mock-1.10.0, hypothesis-6.131.9\nasyncio: mode=strict, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\n"]
+[0.14800000000000008,"o","\u001b[1mcollecting ... \u001b[0mcollected 0 items\n"]
+[0.14800000000000008,"o","\n"]
+[0.14800000000000008,"o","\u001b[33m================================================ \u001b[33mno tests ran\u001b[0m\u001b[33m in 0.15s\u001b[0m\u001b[33m =================================================\u001b[0m\n"]
+[0.196,"o","\u001b[31mERROR: file or directory not found: tests/\n\u001b[0m\n"]
