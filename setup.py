@@ -62,7 +62,7 @@ setup(
                       'fastparquet', 'dask'],
     entry_points={
         'console_scripts': [
-            'sample=sample:main',
+            'pystore=pystore.__main__:main',
         ],
     },
 )
