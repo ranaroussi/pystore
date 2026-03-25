@@ -38,16 +38,37 @@ except (ImportError, AttributeError):
 from . import config
 
 
-# Configure logger for pystore
+# Configure logger for pystore - use NullHandler by default (best practice for libraries)
+# Users can call configure_logging() to set up default logging behavior
 logger = logging.getLogger('pystore')
-if not logger.handlers:
+logger.addHandler(logging.NullHandler())
+
+
+def configure_logging(level=logging.INFO, format_string=None):
+    """Configure logging for pystore.
+    
+    This function can be called at application startup to configure logging
+    instead of configuring at module import time.
+    
+    Args:
+        level: Logging level (default: INFO)
+        format_string: Custom format string for log messages
+                     (default: '%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    """
+    if format_string is None:
+        format_string = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    
+    # Remove any existing handlers (except NullHandler)
+    for handler in logger.handlers[:]:
+        if not isinstance(handler, logging.NullHandler):
+            logger.removeHandler(handler)
+    
+    # Add StreamHandler with the specified level and format
     handler = logging.StreamHandler()
-    formatter = logging.Formatter(
-        '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-    )
+    formatter = logging.Formatter(format_string)
     handler.setFormatter(formatter)
     logger.addHandler(handler)
-    logger.setLevel(logging.INFO)
+    logger.setLevel(level)
 
 
 def read_csv(urlpath, *args, **kwargs):

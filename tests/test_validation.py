@@ -22,6 +22,7 @@ import os
 import shutil
 import tempfile
 import pytest
+import logging
 import pandas as pd
 import numpy as np
 
@@ -399,6 +400,140 @@ class TestDtypeCompatibility:
         
         # object to object
         assert collection._are_dtypes_compatible('object', 'object')
+
+
+class TestLogging:
+    """Test logging functionality for data operations."""
+
+    @pytest.fixture(autouse=True)
+    def setup(self):
+        """Set up test environment."""
+        # Create a temporary directory for pystore
+        self.test_dir = tempfile.mkdtemp()
+        pystore.set_path(self.test_dir)
+
+        # Create a store and collection with pyarrow engine
+        self.store = pystore.store('test_store', engine='pyarrow')
+        self.collection = self.store.collection('test_collection')
+
+        yield
+
+        # Cleanup
+        pystore.delete_stores()
+        if os.path.exists(self.test_dir):
+            shutil.rmtree(self.test_dir)
+
+    def _create_sample_data(self, columns=None, index=None, dtypes=None):
+        """Create sample DataFrame for testing."""
+        if columns is None:
+            columns = ['a', 'b', 'c']
+        
+        if dtypes is None:
+            dtypes = {'a': 'int64', 'b': 'float64', 'c': 'object'}
+        
+        data = {
+            'a': [1, 2, 3],
+            'b': [1.0, 2.0, 3.0],
+            'c': ['x', 'y', 'z']
+        }
+        
+        df = pd.DataFrame(data)
+        
+        # Apply custom dtypes if specified
+        if dtypes:
+            for col, dtype in dtypes.items():
+                if col in df.columns:
+                    df[col] = df[col].astype(dtype)
+        
+        if index is not None:
+            df.index = index
+        
+        return df
+
+    def test_write_emits_log_messages(self, caplog):
+        """Test that write operation emits INFO level log messages."""
+        # Configure logging to capture pystore logs
+        with caplog.at_level(logging.INFO, logger='pystore'):
+            data = self._create_sample_data()
+            self.collection.write('test_item', data)
+
+        # Verify log messages are emitted
+        assert len(caplog.records) >= 2
+        
+        # Check for write start log
+        write_start_logs = [r for r in caplog.records 
+                           if "Writing item 'test_item'" in r.message]
+        assert len(write_start_logs) == 1
+        assert write_start_logs[0].levelname == 'INFO'
+        
+        # Check for write completion log
+        write_complete_logs = [r for r in caplog.records 
+                              if "Successfully wrote item 'test_item'" in r.message]
+        assert len(write_complete_logs) == 1
+        assert write_complete_logs[0].levelname == 'INFO'
+
+    def test_append_emits_log_messages(self, caplog):
+        """Test that append operation emits INFO level log messages."""
+        # First write some data
+        data = self._create_sample_data()
+        self.collection.write('test_item', data)
+
+        # Now append with new data (using non-overlapping indices)
+        with caplog.at_level(logging.INFO, logger='pystore'):
+            new_data = self._create_sample_data()
+            new_data.index = pd.Index([100, 101, 102])
+            self.collection.append('test_item', new_data)
+
+        # Verify log messages are emitted
+        assert len(caplog.records) >= 2
+        
+        # Check for append start log
+        append_start_logs = [r for r in caplog.records 
+                           if "Appending data to item 'test_item'" in r.message]
+        assert len(append_start_logs) == 1
+        assert append_start_logs[0].levelname == 'INFO'
+        
+        # Check for append completion log
+        append_complete_logs = [r for r in caplog.records 
+                               if "Successfully appended data to item 'test_item'" in r.message]
+        assert len(append_complete_logs) == 1
+        assert append_complete_logs[0].levelname == 'INFO'
+
+    def test_delete_emits_log_messages(self, caplog):
+        """Test that delete operation emits INFO level log messages."""
+        # First write some data
+        data = self._create_sample_data()
+        self.collection.write('test_item', data)
+
+        # Now delete the item
+        with caplog.at_level(logging.INFO, logger='pystore'):
+            self.collection.delete_item('test_item')
+
+        # Verify log messages are emitted
+        assert len(caplog.records) >= 2
+        
+        # Check for delete start log
+        delete_start_logs = [r for r in caplog.records 
+                           if "Deleting item 'test_item'" in r.message]
+        assert len(delete_start_logs) == 1
+        assert delete_start_logs[0].levelname == 'INFO'
+        
+        # Check for delete completion log
+        delete_complete_logs = [r for r in caplog.records 
+                               if "Successfully deleted item 'test_item'" in r.message]
+        assert len(delete_complete_logs) == 1
+        assert delete_complete_logs[0].levelname == 'INFO'
+
+    def test_log_messages_contain_collection_name(self, caplog):
+        """Test that log messages contain the collection name."""
+        with caplog.at_level(logging.INFO, logger='pystore'):
+            data = self._create_sample_data()
+            self.collection.write('test_item', data)
+
+        # Verify log messages contain collection name
+        collection_logs = [r for r in caplog.records 
+                         if "test_collection" in r.message]
+        assert len(collection_logs) >= 2
 
 
 if __name__ == '__main__':
