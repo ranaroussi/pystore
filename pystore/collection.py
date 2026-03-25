@@ -98,6 +98,51 @@ class Collection(object):
         logger.info(f"Successfully deleted item '{item}' from collection '{self.collection}'")
         return True
 
+    def rename_item(self, old_item, new_item, reload_items=False):
+        """Rename an item in the collection.
+
+        Parameters
+        ----------
+        old_item : str
+            The current name of the item
+        new_item : str
+            The new name for the item
+        reload_items : bool, optional (default=False)
+            If True, reload the list of items after renaming
+
+        Returns
+        -------
+        bool : True if successful
+
+        Raises
+        ------
+        ValueError : If old_item doesn't exist or new_item already exists
+        """
+        logger.info(f"Renaming item '{old_item}' to '{new_item}' in collection '{self.collection}'")
+
+        # Check if old item exists
+        if not utils.path_exists(self._item_path(old_item)):
+            raise ValueError(f"Item '{old_item}' does not exist")
+
+        # Check if new item doesn't already exist
+        if utils.path_exists(self._item_path(new_item)):
+            raise ValueError(f"Item '{new_item}' already exists")
+
+        # Rename the item directory
+        old_path = self._item_path(old_item, as_string=True)
+        new_path = self._item_path(new_item, as_string=True)
+        shutil.move(old_path, new_path)
+
+        # Update items set
+        self.items.discard(old_item)
+        self.items.add(new_item)
+
+        if reload_items:
+            self._list_items_threaded()
+
+        logger.info(f"Successfully renamed item '{old_item}' to '{new_item}' in collection '{self.collection}'")
+        return True
+
     @multitasking.task
     def write_threaded(self, item, data, metadata={},
                        npartitions=None, chunksize=None,

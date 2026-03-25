@@ -536,5 +536,180 @@ class TestLogging:
         assert len(collection_logs) >= 2
 
 
+class TestRenameItem:
+    """Test rename_item functionality."""
+
+    @pytest.fixture(autouse=True)
+    def setup(self):
+        """Set up test environment."""
+        # Create a temporary directory for pystore
+        self.test_dir = tempfile.mkdtemp()
+        pystore.set_path(self.test_dir)
+
+        # Create a store and collection with pyarrow engine
+        self.store = pystore.store('test_store', engine='pyarrow')
+        self.collection = self.store.collection('test_collection')
+
+        yield
+
+        # Cleanup
+        pystore.delete_stores()
+        if os.path.exists(self.test_dir):
+            shutil.rmtree(self.test_dir)
+
+    def _create_sample_data(self, columns=None, index=None, dtypes=None):
+        """Create sample DataFrame for testing."""
+        if columns is None:
+            columns = ['a', 'b', 'c']
+        
+        if dtypes is None:
+            dtypes = {'a': 'int64', 'b': 'float64', 'c': 'object'}
+        
+        data = {
+            'a': [1, 2, 3],
+            'b': [1.0, 2.0, 3.0],
+            'c': ['x', 'y', 'z']
+        }
+        
+        df = pd.DataFrame(data)
+        
+        # Apply custom dtypes if specified
+        if dtypes:
+            for col, dtype in dtypes.items():
+                if col in df.columns:
+                    df[col] = df[col].astype(dtype)
+        
+        if index is not None:
+            df.index = index
+        
+        return df
+
+    def test_rename_item_basic(self):
+        """Test basic item renaming."""
+        # Write initial data
+        data = self._create_sample_data()
+        self.collection.write('old_item', data)
+
+        # Verify item exists with old name
+        items = self.collection.list_items()
+        assert 'old_item' in items
+        assert 'new_item' not in items
+
+        # Rename the item
+        result = self.collection.rename_item('old_item', 'new_item')
+        assert result is True
+
+        # Verify new item exists and old doesn't
+        items = self.collection.list_items()
+        assert 'old_item' not in items
+        assert 'new_item' in items
+
+    def test_rename_item_preserves_data(self):
+        """Test that data is preserved after rename."""
+        # Write initial data
+        data = self._create_sample_data()
+        self.collection.write('old_item', data)
+
+        # Rename the item
+        self.collection.rename_item('old_item', 'new_item')
+
+        # Verify data is accessible with new name
+        item = self.collection.item('new_item')
+        result = item.to_pandas()
+        assert len(result) == 3
+        assert list(result['a']) == [1, 2, 3]
+
+    def test_rename_item_preserves_metadata(self):
+        """Test that metadata is preserved after rename."""
+        # Write initial data with metadata
+        data = self._create_sample_data()
+        metadata = {'source': 'test', 'version': 1}
+        self.collection.write('old_item', data, metadata=metadata)
+
+        # Rename the item
+        self.collection.rename_item('old_item', 'new_item')
+
+        # Verify metadata is preserved
+        item = self.collection.item('new_item')
+        assert item.metadata['source'] == 'test'
+        assert item.metadata['version'] == 1
+
+    def test_rename_nonexistent_item_raises_error(self):
+        """Test that renaming nonexistent item raises ValueError."""
+        data = self._create_sample_data()
+        self.collection.write('existing_item', data)
+
+        with pytest.raises(ValueError) as exc_info:
+            self.collection.rename_item('nonexistent_item', 'new_item')
+
+        assert "does not exist" in str(exc_info.value)
+
+    def test_rename_to_existing_item_raises_error(self):
+        """Test that renaming to existing item name raises ValueError."""
+        data = self._create_sample_data()
+        self.collection.write('item1', data)
+        self.collection.write('item2', data)
+
+        with pytest.raises(ValueError) as exc_info:
+            self.collection.rename_item('item1', 'item2')
+
+        assert "already exists" in str(exc_info.value)
+
+    def test_rename_item_updates_internal_items_set(self):
+        """Test that internal items set is updated after rename."""
+        # Write initial data
+        data = self._create_sample_data()
+        self.collection.write('old_item', data)
+
+        # Verify internal items set contains old name
+        assert 'old_item' in self.collection.items
+        assert 'new_item' not in self.collection.items
+
+        # Rename the item
+        self.collection.rename_item('old_item', 'new_item')
+
+        # Verify internal items set is updated
+        assert 'old_item' not in self.collection.items
+        assert 'new_item' in self.collection.items
+
+    def test_rename_item_with_reload(self):
+        """Test rename with reload_items=True."""
+        # Write initial data
+        data = self._create_sample_data()
+        self.collection.write('old_item', data)
+
+        # Rename with reload
+        self.collection.rename_item('old_item', 'new_item', reload_items=True)
+
+        # Verify item exists
+        items = self.collection.list_items()
+        assert 'new_item' in items
+
+    def test_rename_item_emits_log_messages(self, caplog):
+        """Test that rename operation emits INFO level log messages."""
+        # Write initial data
+        data = self._create_sample_data()
+        self.collection.write('old_item', data)
+
+        # Rename the item
+        with caplog.at_level(logging.INFO, logger='pystore'):
+            self.collection.rename_item('old_item', 'new_item')
+
+        # Verify log messages are emitted
+        assert len(caplog.records) >= 2
+        
+        # Check for rename start log
+        rename_start_logs = [r for r in caplog.records 
+                           if "Renaming item 'old_item'" in r.message]
+        assert len(rename_start_logs) == 1
+        assert rename_start_logs[0].levelname == 'INFO'
+        
+        # Check for rename completion log
+        rename_complete_logs = [r for r in caplog.records 
+                               if "Successfully renamed item 'old_item' to 'new_item'" in r.message]
+        assert len(rename_complete_logs) == 1
+        assert rename_complete_logs[0].levelname == 'INFO'
+
+
 if __name__ == '__main__':
     pytest.main([__file__, '-v'])
