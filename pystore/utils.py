@@ -19,6 +19,7 @@
 # limitations under the License.
 
 import os
+import logging
 from datetime import datetime
 import json
 import shutil
@@ -35,6 +36,39 @@ except (ImportError, AttributeError):
     from pathlib2 import Path
 
 from . import config
+
+
+# Configure logger for pystore - use NullHandler by default (best practice for libraries)
+# Users can call configure_logging() to set up default logging behavior
+logger = logging.getLogger('pystore')
+logger.addHandler(logging.NullHandler())
+
+
+def configure_logging(level=logging.INFO, format_string=None):
+    """Configure logging for pystore.
+    
+    This function can be called at application startup to configure logging
+    instead of configuring at module import time.
+    
+    Args:
+        level: Logging level (default: INFO)
+        format_string: Custom format string for log messages
+                     (default: '%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    """
+    if format_string is None:
+        format_string = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    
+    # Remove any existing handlers (except NullHandler)
+    for handler in logger.handlers[:]:
+        if not isinstance(handler, logging.NullHandler):
+            logger.removeHandler(handler)
+    
+    # Add StreamHandler with the specified level and format
+    handler = logging.StreamHandler()
+    formatter = logging.Formatter(format_string)
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
+    logger.setLevel(level)
 
 
 def read_csv(urlpath, *args, **kwargs):
@@ -95,7 +129,9 @@ def read_metadata(path):
     dest = make_path(path, "metadata.json")
     if path_exists(dest):
         with dest.open() as f:
-            return json.load(f)
+            metadata = json.load(f)
+            logger.debug(f"Read metadata from {dest}")
+            return metadata
 
 
 def write_metadata(path, metadata={}):
@@ -105,6 +141,7 @@ def write_metadata(path, metadata={}):
     meta_file = make_path(path, "metadata.json")
     with meta_file.open("w") as f:
         json.dump(metadata, f, ensure_ascii=False)
+        logger.debug(f"Wrote metadata to {meta_file}")
 
 
 def make_path(*args):
