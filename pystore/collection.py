@@ -148,9 +148,146 @@ class Collection(object):
         if reload_items:
             self._list_items_threaded()
 
+    def _get_item_schema(self, item):
+        """Extract schema from existing item.
+
+        Returns a dictionary containing column names, dtypes, and index type.
+        """
+        item_path = self._item_path(item, as_string=True)
+        # Read metadata only (not full data) to get schema
+        ddf = dd.read_parquet(item_path, engine=self.engine)
+        schema = {
+            'columns': list(ddf.columns),
+            'dtypes': ddf.dtypes.to_dict(),
+            'index_name': ddf.index.name,
+            'index_type': str(type(ddf.index).__name__)
+        }
+        return schema
+
+    def _validate_data_compatibility(self, new_data, existing_schema,
+                                     strictness='strict',
+                                     allow_extra_columns=False):
+        """Validate that new data is compatible with existing data schema.
+
+        Parameters
+        ----------
+        new_data : pandas.DataFrame
+            The new data to validate
+        existing_schema : dict
+            Schema of existing data from _get_item_schema
+        strictness : str
+            'strict' - raises ValueError on mismatch
+            'warn' - logs warning but proceeds
+            'disabled' - no validation
+        allow_extra_columns : bool
+            If True, allows extra columns in new data
+
+        Returns
+        -------
+        tuple : (is_valid, error_messages)
+        """
+        import warnings
+
+        if strictness == 'disabled':
+            return True, []
+
+        errors = []
+        existing_columns = set(existing_schema['columns'])
+        new_columns = set(new_data.columns)
+
+        # Check for missing columns (columns in existing but not in new)
+        missing_columns = existing_columns - new_columns
+        if missing_columns:
+            errors.append(
+                f"Missing columns in new data: {sorted(missing_columns)}"
+            )
+
+        # Check for extra columns (columns in new but not in existing)
+        extra_columns = new_columns - existing_columns
+        if extra_columns and not allow_extra_columns:
+            errors.append(
+                f"Extra columns in new data not present in existing: "
+                f"{sorted(extra_columns)}"
+            )
+
+        # Check dtype compatibility for common columns
+        common_columns = existing_columns & new_columns
+        for col in common_columns:
+            existing_dtype = existing_schema['dtypes'].get(col)
+            new_dtype = new_data[col].dtype
+            if existing_dtype is not None:
+                # Check if dtypes are compatible
+                if not self._are_dtypes_compatible(existing_dtype, new_dtype):
+                    errors.append(
+                        f"dtype mismatch for column '{col}': "
+                        f"existing={existing_dtype}, new={new_dtype}"
+                    )
+
+        # Check index type
+        existing_index_type = existing_schema.get('index_type', 'Index')
+        new_index_type = str(type(new_data.index).__name__)
+        if existing_index_type != new_index_type:
+            errors.append(
+                f"index type mismatch: existing={existing_index_type}, "
+                f"new={new_index_type}"
+            )
+
+        # Handle validation based on strictness
+        if errors:
+            if strictness == 'strict':
+                return False, errors
+            elif strictness == 'warn':
+                warning_msg = "Schema validation warnings: " + "; ".join(errors)
+                warnings.warn(warning_msg)
+                return True, []  # Still valid in warn mode
+
+        return True, []
+
+    def _are_dtypes_compatible(self, existing_dtype, new_dtype):
+        """Check if two pandas dtypes are compatible.
+
+        Parameters
+        ----------
+        existing_dtype : pandas dtype
+            The existing dtype
+        new_dtype : pandas dtype
+            The new dtype
+
+        Returns
+        -------
+        bool : True if compatible, False otherwise
+        """
+        import pandas as pd
+
+        # Use pandas API for dtype comparison
+        if pd.api.types.is_dtype_equal(existing_dtype, new_dtype):
+            return True
+
+        # Check for numeric type compatibility
+        existing_is_numeric = pd.api.types.is_numeric_dtype(existing_dtype)
+        new_is_numeric = pd.api.types.is_numeric_dtype(new_dtype)
+
+        if existing_is_numeric and new_is_numeric:
+            # Both numeric - check if both are integer or both are float
+            existing_is_float = pd.api.types.is_float_dtype(existing_dtype)
+            new_is_float = pd.api.types.is_float_dtype(new_dtype)
+            return existing_is_float == new_is_float
+
+        # Check for string type compatibility
+        existing_is_string = (
+            pd.api.types.is_string_dtype(existing_dtype) or
+            existing_dtype == 'object'
+        )
+        new_is_string = (
+            pd.api.types.is_string_dtype(new_dtype) or
+            new_dtype == 'object'
+        )
+        return existing_is_string == new_is_string
+
     def append(self, item, data, npartitions=None, epochdate=False,
                threaded=False, reload_items=False, remove_duplicates=None,
-               **kwargs):
+               validate_schema=False, schema_strictness='strict',
+               allow_extra_columns=False, **kwargs):
         """Append new data to the collection.
 
         Saves new data to the collection and optionially removes duplicates
@@ -181,6 +318,17 @@ class Collection(object):
             "values_in_index" = For data with non unique index but unique row
                 values within index duplicates. Rows with duplicated values
                 within the same index will be deleted
+        validate_schema : bool, optional (default=False)
+            When True, validates schema compatibility before appending data.
+            This checks column names, dtypes, and index type compatibility.
+        schema_strictness : str, optional (default='strict')
+            Controls behavior on validation failure. Valid values:
+            'strict' - raises ValueError on mismatch
+            'warn' - logs warning but proceeds with append
+            'disabled' - no validation performed
+        allow_extra_columns : bool, optional (default=False)
+            When True, allows appended data to have columns not present in
+            existing data. Only relevant when validate_schema=True.
 
         kwargs
 
@@ -195,6 +343,17 @@ class Collection(object):
 
         # work on copy
         data = data.copy()
+
+        # Validate schema if enabled
+        if validate_schema:
+            existing_schema = self._get_item_schema(item)
+            is_valid, error_messages = self._validate_data_compatibility(
+                data, existing_schema, schema_strictness, allow_extra_columns
+            )
+            if not is_valid:
+                raise ValueError(
+                    "Schema validation failed: " + "; ".join(error_messages)
+                )
 
         try:
             if epochdate or ("datetime" in str(data.index.dtype) and
