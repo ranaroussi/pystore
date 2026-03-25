@@ -19,6 +19,7 @@
 # limitations under the License.
 
 import os
+import logging
 from datetime import datetime
 import json
 import shutil
@@ -35,6 +36,18 @@ except (ImportError, AttributeError):
     from pathlib2 import Path
 
 from . import config
+
+
+# Configure logger for pystore
+logger = logging.getLogger('pystore')
+if not logger.handlers:
+    handler = logging.StreamHandler()
+    formatter = logging.Formatter(
+        '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    )
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
+    logger.setLevel(logging.INFO)
 
 
 def read_csv(urlpath, *args, **kwargs):
@@ -95,7 +108,9 @@ def read_metadata(path):
     dest = make_path(path, "metadata.json")
     if path_exists(dest):
         with dest.open() as f:
-            return json.load(f)
+            metadata = json.load(f)
+            logger.debug(f"Read metadata from {dest}")
+            return metadata
 
 
 def write_metadata(path, metadata={}):
@@ -105,6 +120,7 @@ def write_metadata(path, metadata={}):
     meta_file = make_path(path, "metadata.json")
     with meta_file.open("w") as f:
         json.dump(metadata, f, ensure_ascii=False)
+        logger.debug(f"Wrote metadata to {meta_file}")
 
 
 def make_path(*args):

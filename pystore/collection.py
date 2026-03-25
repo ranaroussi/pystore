@@ -21,12 +21,16 @@
 import os
 import time
 import shutil
+import logging
 import dask.dataframe as dd
 import multitasking
 
 from . import utils
 from .item import Item
 from . import config
+
+
+logger = logging.getLogger('pystore')
 
 
 class Collection(object):
@@ -86,10 +90,12 @@ class Collection(object):
                      "\nName")[0].split("\n")[-1].split(" ")[0])
 
     def delete_item(self, item, reload_items=False):
+        logger.info(f"Deleting item '{item}' from collection '{self.collection}'")
         shutil.rmtree(self._item_path(item))
         self.items.remove(item)
         if reload_items:
             self.items = self._list_items_threaded()
+        logger.info(f"Successfully deleted item '{item}' from collection '{self.collection}'")
         return True
 
     @multitasking.task
@@ -106,6 +112,8 @@ class Collection(object):
               npartitions=None, chunksize=None, overwrite=False,
               epochdate=False, reload_items=False,
               **kwargs):
+
+        logger.info(f"Writing item '{item}' to collection '{self.collection}'")
 
         if utils.path_exists(self._item_path(item)) and not overwrite:
             raise ValueError("""
@@ -147,6 +155,8 @@ class Collection(object):
         self.items.add(item)
         if reload_items:
             self._list_items_threaded()
+
+        logger.info(f"Successfully wrote item '{item}' to collection '{self.collection}'")
 
     def _get_item_schema(self, item):
         """Extract schema from existing item.
@@ -336,7 +346,9 @@ class Collection(object):
         -------
 
         """
-        
+
+        logger.info(f"Appending data to item '{item}' in collection '{self.collection}'")
+
         if not utils.path_exists(self._item_path(item)):
             raise ValueError(
                 """Item do not exists. Use `<collection>.write(...)`""")
@@ -416,6 +428,8 @@ class Collection(object):
         write(item, combined, npartitions=npartitions, chunksize=None,
               metadata=current.metadata, overwrite=True,
               epochdate=epochdate, reload_items=reload_items, **kwargs)
+
+        logger.info(f"Successfully appended data to item '{item}' in collection '{self.collection}'")
 
     def create_snapshot(self, snapshot=None):
         if snapshot:
