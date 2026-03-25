@@ -284,9 +284,6 @@ class Collection(object):
         )
         return existing_is_string == new_is_string
 
-        # For other cases, require exact match
-        return False
-
     def append(self, item, data, npartitions=None, epochdate=False,
                threaded=False, reload_items=False, remove_duplicates=None,
                validate_schema=False, schema_strictness='strict',
