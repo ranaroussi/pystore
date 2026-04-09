@@ -42,7 +42,7 @@ $ conda install -c ranaroussi pystore
 ```
 
 **INSTALLATION NOTE:**
-If you don't have Snappy installed (compression/decompression library), you'll need to
+If you don't have Snappy installed (compression/decompression library),
 [install it first](https://github.com/ranaroussi/pystore#dependencies).
 
 ### Using PyStore
@@ -177,7 +177,7 @@ You'll need to install Snappy on your system before installing PyStore.
 
 * See the `python-snappy` [Github repo](https://github.com/andrix/python-snappy#dependencies) for more information.
 
-***nix Systems:**
+**\*nix Systems:**
 
 - APT: `sudo apt-get install libsnappy-dev`
 - RPM: `sudo yum install libsnappy-devel`
