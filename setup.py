@@ -25,7 +25,7 @@ from setuptools import setup, find_packages
 here = path.abspath(path.dirname(__file__))
 
 # Get the long description from the README file
-with codecs.open(path.join(here, 'README.rst'), encoding='utf-8') as f:
+with codecs.open(path.join(here, 'README.md'), encoding='utf-8') as f:
     long_description = f.read()
 
 setup(
@@ -33,6 +33,7 @@ setup(
     version="0.1.22",
     description='Fast data store for Pandas timeseries data',
     long_description=long_description,
+    long_description_content_type='text/markdown',
     url='https://github.com/ranaroussi/pystore',
     author='Ran Aroussi',
     author_email='ran@aroussi.com',
