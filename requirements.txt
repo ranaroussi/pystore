@@ -7,4 +7,5 @@ pandas>=0.24.0
 numpy>=1.15.4
 fastparquet>=0.3.0
 dask>=1.2.2
+pyarrow
 multitasking>=0.0.9

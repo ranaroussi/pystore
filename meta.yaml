@@ -23,6 +23,7 @@ requirements:
     - multitasking
     - numpy
     - pandas
+    - pyarrow
     - partd
     - pip
     - python
@@ -36,6 +37,7 @@ requirements:
     - multitasking
     - numpy
     - pandas
+    - pyarrow
     - partd
     - python
     - python-snappy
