@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "pystore"
 version = "1.0.1"
 description = "Fast data store for Pandas timeseries data"
-readme = "README.rst"
+readme = "README.md"
 license = {text = "Apache-2.0"}
 authors = [
     {name = "Ran Aroussi", email = "ran@aroussi.com"},
