@@ -16,9 +16,7 @@ before_install:
 
 install:
   - pip install --upgrade pip
-  - pip install pytest pytest-cov
-  - pip install python-snappy
-  - pip install Cython
+  - pip install pytest pytest-cov Cython
   - pip install -r requirements.txt
   - pip install .
 
