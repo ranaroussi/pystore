@@ -63,7 +63,7 @@ setup(
     python_requires='>=3.9',
     install_requires=['python-snappy', 'multitasking', 'toolz', 'partd',
                       'cloudpickle', 'distributed', 'pandas', 'numpy',
-                      'fastparquet', 'dask'],
+                      'fastparquet', 'dask', 'pyarrow'],
     entry_points={
         'console_scripts': [
             'pystore=pystore.__main__:main',
