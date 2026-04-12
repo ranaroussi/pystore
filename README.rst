@@ -1,7 +1,7 @@
 PyStore - Fast data store for Pandas timeseries data
 ====================================================
 
-.. image:: https://img.shields.io/badge/python-2.7,%203.5+-blue.svg?style=flat
+.. image:: https://img.shields.io/badge/python-3.9+-blue.svg?style=flat
     :target: https://pypi.python.org/pypi/pystore
     :alt: Python version
 
@@ -194,7 +194,7 @@ A good practice it to create collections that may look something like this:
 Requirements
 ============
 
-* Python 2.7 or Python > 3.5
+* Python 3.9+
 * Pandas
 * Numpy
 * Dask
