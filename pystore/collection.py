@@ -715,9 +715,7 @@ class Collection:
                     "different index structures"
                 )
                 has_mismatch = True
-            elif isinstance(existing_index, pd.MultiIndex) and isinstance(
-                new_index, pd.MultiIndex
-            ):
+            else:
                 for level, (existing_dtype, new_dtype) in enumerate(
                     zip(existing_index.dtypes, new_index.dtypes)
                 ):

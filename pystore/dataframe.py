@@ -87,17 +87,6 @@ def are_dtypes_compatible(existing_dtype: Any, new_dtype: Any) -> bool:
     ) and pd.api.types.is_timedelta64_dtype(new):
         return True
 
-    if isinstance(existing, pd.CategoricalDtype) and isinstance(
-        new, pd.CategoricalDtype
-    ):
-        return existing == new
-
-    if isinstance(existing, pd.IntervalDtype) and isinstance(new, pd.IntervalDtype):
-        return existing == new
-
-    if isinstance(existing, pd.PeriodDtype) and isinstance(new, pd.PeriodDtype):
-        return existing == new
-
     return False
 
 
