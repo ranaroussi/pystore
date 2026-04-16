@@ -23,6 +23,7 @@ Memory management utilities for PyStore
 """
 
 import gc
+import math
 from collections.abc import Generator
 from contextlib import contextmanager
 from typing import Any, Optional
@@ -124,22 +125,31 @@ def read_in_chunks(
     total_rows = len(dask_df)
     logger.info(f"Reading {total_rows:,} rows in chunks of {chunk_size:,}")
 
+    # Repartition so that each partition is *approximately* chunk_size rows.
+    # This reduces the amount materialised per partition from the original
+    # (potentially very large) on-disk partition to roughly chunk_size, so
+    # peak memory is bounded by chunk_size rather than the storage layout.
+    n_partitions = max(1, math.ceil(total_rows / chunk_size))
+    if n_partitions != dask_df.npartitions:
+        dask_df = dask_df.repartition(npartitions=n_partitions)
+
     rows_read = 0
 
-    # Stream one Dask partition at a time to bound peak memory usage
     for partition_idx in range(dask_df.npartitions):
         check_memory_usage()
 
-        # Compute only this partition – prior partitions are no longer referenced
+        # Compute only this partition; prior partitions are no longer referenced.
         partition_df = dask_df.get_partition(partition_idx).compute()
 
-        # Yield chunk_size slices from within the partition
+        # Slice within the partition to guarantee yielded chunks never exceed
+        # chunk_size even if repartition produced a slightly oversized partition.
         for start in range(0, len(partition_df), chunk_size):
             end = min(start + chunk_size, len(partition_df))
-            chunk = partition_df.iloc[start:end].copy()
+            chunk = partition_df.iloc[start:end]
 
             logger.debug(
-                f"Read chunk {rows_read:,}-{rows_read + len(chunk):,} ({len(chunk):,} rows)"
+                f"Read chunk {rows_read:,}-{rows_read + len(chunk):,} "
+                f"({len(chunk):,} rows)"
             )
 
             yield chunk

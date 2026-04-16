@@ -603,7 +603,7 @@ class Collection:
         evolved_current_df, data = self._handle_schema_evolution(item, data, current_df)
 
         if validate_schema and evolved_current_df is None:
-            self._validate_schema_compatibility(current.data, data)
+            self._validate_schema_compatibility(current_df, data)
 
         base_df = evolved_current_df if evolved_current_df is not None else current_df
 
@@ -713,7 +713,9 @@ class Collection:
         return True
 
     def _validate_schema_compatibility(
-        self, existing_data: dd.DataFrame, new_data: Union[pd.DataFrame, dd.DataFrame]
+        self,
+        existing_data: Union[pd.DataFrame, dd.DataFrame],
+        new_data: Union[pd.DataFrame, dd.DataFrame],
     ) -> None:
         """Validate schema compatibility between existing and new data"""
         existing_columns = set(existing_data.columns)

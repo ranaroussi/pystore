@@ -76,6 +76,12 @@ def prepare_dataframe_for_storage(df: pd.DataFrame) -> tuple[pd.DataFrame, dict]
         index_name = df.index.name
         metadata["index_names"] = [index_name if index_name is not None else "index"]
         metadata["index_dtypes"] = [str(df.index.dtype)]
+        # Record the original DatetimeIndex frequency (None means freq was not set)
+        # so that to_pandas() can restore it accurately without inferring.
+        if isinstance(df.index, pd.DatetimeIndex):
+            metadata["index_freq"] = (
+                df.index.freqstr if df.index.freq is not None else None
+            )
 
     # Handle complex data types
     for col in df.columns:

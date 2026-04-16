@@ -57,9 +57,6 @@ class TestMultiIndexSupport:
         assert result.index.names == ["category", "date"]
         pd.testing.assert_frame_equal(result, df)
 
-    @pytest.mark.xfail(
-        reason="Dask MultiIndex support is limited - workaround doesn't fully preserve structure"
-    )
     def test_multiindex_append(self):
         """Test appending to MultiIndex DataFrames"""
         # Initial data

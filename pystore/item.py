@@ -103,12 +103,41 @@ class Item:
         return df
 
     def _restore_datetime_frequency(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Restore DatetimeIndex frequency when parquet round-trips drop it."""
+        """Restore DatetimeIndex frequency when parquet round-trips drop it.
+
+        Uses the ``index_freq`` value stored in ``_transform_metadata`` at write
+        time so that a ``freq=None`` index is never silently promoted to an
+        inferred frequency on read-back.  Items written before this metadata
+        field was introduced fall back to the old inference behaviour for
+        backward compatibility.
+        """
         if isinstance(df.index, pd.MultiIndex) or not isinstance(
             df.index, pd.DatetimeIndex
         ):
             return df
 
+        transform_meta = self.metadata.get("_transform_metadata", {})
+
+        if "index_freq" in transform_meta:
+            stored_freq = transform_meta["index_freq"]
+            if stored_freq is None:
+                # Original index had freq=None; do not inject an inferred value.
+                return df
+            # Restore the exact freq recorded at write time.  This can fail
+            # when the data has been filtered (e.g. via pushdown predicates)
+            # and the remaining rows are no longer evenly spaced, so we
+            # silently leave freq=None in that case.
+            try:
+                df = df.copy()
+                df.index = pd.DatetimeIndex(
+                    df.index, freq=stored_freq, name=df.index.name
+                )
+            except ValueError:
+                pass
+            return df
+
+        # No freq metadata (item written before this fix) – fall back to
+        # inference for backward compatibility.
         try:
             inferred_freq = pd.infer_freq(df.index)
         except (TypeError, ValueError):
