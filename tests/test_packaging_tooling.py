@@ -2,6 +2,7 @@
 Tests for packaging metadata and release tooling.
 """
 
+import re
 import shutil
 import subprocess
 import sys
@@ -9,9 +10,8 @@ import tarfile
 import zipfile
 from pathlib import Path
 
-import pystore
-
 REPO_ROOT = Path(__file__).resolve().parents[1]
+PACKAGE_INIT = REPO_ROOT / "pystore" / "__init__.py"
 PROJECT_COPY_IGNORE = shutil.ignore_patterns(
     ".git",
     ".mypy_cache",
@@ -24,6 +24,20 @@ PROJECT_COPY_IGNORE = shutil.ignore_patterns(
     "dist",
     "*.egg-info",
 )
+
+
+def _load_package_version() -> str:
+    """Load the package version without importing the runtime package graph."""
+    match = re.search(
+        r'^__version__\s*=\s*"([^"]+)"',
+        PACKAGE_INIT.read_text(encoding="utf-8"),
+        re.MULTILINE,
+    )
+    assert match is not None, "Could not determine pystore.__version__"
+    return match.group(1)
+
+
+PACKAGE_VERSION = _load_package_version()
 
 
 class TestPackagingTooling:
@@ -65,7 +79,7 @@ class TestPackagingTooling:
             metadata = wheel_archive.read(metadata_name).decode()
 
         assert "pystore/py.typed" in wheel_names
-        assert f"Version: {pystore.__version__}" in metadata
+        assert f"Version: {PACKAGE_VERSION}" in metadata
         assert "Requires-Python: >=3.9" in metadata
         assert "License-Expression: Apache-2.0" in metadata
 
@@ -82,6 +96,19 @@ class TestPackagingTooling:
         assert 'dynamic = ["version"]' in pyproject
         assert 'version = {attr = "pystore.__version__"}' in pyproject
         assert "setuptools-scm" not in pyproject
+
+    def test_conda_recipe_tracks_current_release_metadata(self):
+        """The conda recipe should match the current package release metadata."""
+        recipe = (REPO_ROOT / "meta.yaml").read_text(encoding="utf-8")
+
+        assert '{% set name = "pystore" %}' in recipe
+        assert f'{{% set version = "{PACKAGE_VERSION}" %}}' in recipe
+        assert (
+            "https://pypi.io/packages/source/{{ name[0] }}/{{ name }}/"
+            "{{ name }}-{{ version }}.tar.gz"
+        ) in recipe
+        assert 'license_file: "LICENSE.txt"' in recipe
+        assert "- fsspec >=2023.1.0" in recipe
 
     def test_publish_workflow_uses_modern_build_and_publish_steps(self):
         """The publish workflow should use the modern PyPA build and publish path."""
