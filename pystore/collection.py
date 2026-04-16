@@ -18,10 +18,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import concurrent.futures
 import os
 import shutil
 import time
-from typing import Any, Optional, Union
+from typing import Any, Optional, Union, cast
 
 import dask.dataframe as dd
 import multitasking
@@ -46,6 +47,7 @@ from .exceptions import (
 from .item import Item
 from .logger import get_logger
 from .partition import calculate_optimal_partitions, optimize_time_series_partitions
+from .transactions import with_lock
 
 logger = get_logger(__name__)
 
@@ -129,7 +131,7 @@ class Collection:
                 return self._metadata_cache[item].copy()
 
         # Read metadata from disk
-        metadata = utils.read_metadata(self._item_path(item))
+        metadata: dict[str, Any] = utils.read_metadata(self._item_path(item))
 
         # Update cache
         if use_cache:
@@ -524,109 +526,115 @@ class Collection:
                 f"Unknown duplicate handling strategy: {duplicate_handling}"
             )
 
-        # Validate and prepare
-        self._validate_append_item(item)
-        data = self._prepare_append_data(data)
-        if data.empty:
-            logger.warning(f"No new data to append to item '{item}'")
-            return
+        item = utils.validate_identifier(item, "Item")
+        with with_lock(self, lock_name=f"append_{item}"):
+            # Validate and prepare
+            self._validate_append_item(item)
+            data = self._prepare_append_data(data)
+            if data.empty:
+                logger.warning(f"No new data to append to item '{item}'")
+                return
 
-        current = self.item(item)
-        current_df = current.to_pandas()
+            current = self.item(item)
+            current_df = current.to_pandas()
 
-        # Validate/align MultiIndex and timezone handling before combining
-        if isinstance(current_df.index, pd.MultiIndex) or isinstance(
-            data.index, pd.MultiIndex
-        ):
-            MultiIndexHandler.validate_multiindex_append(current_df, data)
+            # Validate/align MultiIndex and timezone handling before combining
+            if isinstance(current_df.index, pd.MultiIndex) or isinstance(
+                data.index, pd.MultiIndex
+            ):
+                MultiIndexHandler.validate_multiindex_append(current_df, data)
 
-        if (
-            getattr(current_df.index, "tz", None) is not None
-            or getattr(data.index, "tz", None) is not None
-        ):
-            target_tz = str(
-                getattr(current_df.index, "tz", None)
-                or getattr(data.index, "tz", None)
-                or "UTC"
-            )
-            current_df, data = TimezoneHandler.align_timezones(
-                current_df, data, target_tz=target_tz
-            )
-
-        # Handle schema evolution
-        evolved_current_df, data = self._handle_schema_evolution(item, data, current_df)
-
-        if validate_schema and evolved_current_df is None:
-            self._validate_schema_compatibility(current_df, data)
-
-        base_df = evolved_current_df if evolved_current_df is not None else current_df
-
-        base_has_default_index = (
-            not isinstance(base_df.index, pd.MultiIndex)
-            and pd.api.types.is_integer_dtype(base_df.index.dtype)
-            and base_df.index.equals(
-                pd.Index(range(len(base_df)), name=base_df.index.name)
-            )
-        )
-        data_has_default_index = (
-            isinstance(data.index, pd.RangeIndex)
-            and data.index.start == 0
-            and data.index.step == 1
-        )
-
-        if base_has_default_index and data_has_default_index:
-            data = data.copy()
-            data.index = pd.RangeIndex(
-                start=len(base_df),
-                stop=len(base_df) + len(data),
-                step=1,
-                name=base_df.index.name,
-            )
-
-        overlapping_indices = base_df.index.intersection(data.index)
-
-        if len(overlapping_indices) > 0:
-            if duplicate_handling == "error":
-                raise DataIntegrityError(
-                    f"Found {len(overlapping_indices)} duplicate indices. "
-                    "Use duplicate_handling='keep_last' or 'keep_first' to handle them."
+            if (
+                getattr(current_df.index, "tz", None) is not None
+                or getattr(data.index, "tz", None) is not None
+            ):
+                target_tz = str(
+                    getattr(current_df.index, "tz", None)
+                    or getattr(data.index, "tz", None)
+                    or "UTC"
                 )
-            if duplicate_handling == "keep_first":
-                data = data[~data.index.isin(overlapping_indices)]
-                if data.empty:
-                    logger.warning(
-                        f"No new data to append to item '{item}' after filtering duplicate indices"
-                    )
-                    return
+                current_df, data = TimezoneHandler.align_timezones(
+                    current_df, data, target_tz=target_tz
+                )
 
-        combined = pd.concat([base_df, data], axis=0)
-
-        if duplicate_handling != "keep_all":
-            keep = "first" if duplicate_handling == "keep_first" else "last"
-            combined = combined[~combined.index.duplicated(keep=keep)]
-
-        try:
-            combined = combined.sort_index()
-        except TypeError:
-            logger.debug(
-                f"Skipping index sort for item '{item}' because the index is not sortable"
+            # Handle schema evolution
+            evolved_current_df, data = self._handle_schema_evolution(
+                item, data, current_df
             )
 
-        npartitions = self._calculate_partitions(combined, npartitions)
+            if validate_schema and evolved_current_df is None:
+                self._validate_schema_compatibility(current_df, data)
 
-        # Write to temporary item and replace
-        tmp_item = self._write_temporary_item(
-            item,
-            combined,
-            data,
-            current,
-            npartitions,
-            threaded,
-            epochdate,
-            reload_items,
-            **kwargs,
-        )
-        self._replace_item_with_temporary(item, tmp_item)
+            base_df = (
+                evolved_current_df if evolved_current_df is not None else current_df
+            )
+
+            base_has_default_index = (
+                not isinstance(base_df.index, pd.MultiIndex)
+                and pd.api.types.is_integer_dtype(base_df.index.dtype)
+                and base_df.index.equals(
+                    pd.Index(range(len(base_df)), name=base_df.index.name)
+                )
+            )
+            data_has_default_index = (
+                isinstance(data.index, pd.RangeIndex)
+                and data.index.start == 0
+                and data.index.step == 1
+            )
+
+            if base_has_default_index and data_has_default_index:
+                data = data.copy()
+                data.index = pd.RangeIndex(
+                    start=len(base_df),
+                    stop=len(base_df) + len(data),
+                    step=1,
+                    name=base_df.index.name,
+                )
+
+            overlapping_indices = base_df.index.intersection(data.index)
+
+            if len(overlapping_indices) > 0:
+                if duplicate_handling == "error":
+                    raise DataIntegrityError(
+                        f"Found {len(overlapping_indices)} duplicate indices. "
+                        "Use duplicate_handling='keep_last' or 'keep_first' to handle them."
+                    )
+                if duplicate_handling == "keep_first":
+                    data = data[~data.index.isin(overlapping_indices)]
+                    if data.empty:
+                        logger.warning(
+                            f"No new data to append to item '{item}' after filtering duplicate indices"
+                        )
+                        return
+
+            combined = pd.concat([base_df, data], axis=0)
+
+            if duplicate_handling != "keep_all":
+                keep = "first" if duplicate_handling == "keep_first" else "last"
+                combined = combined[~combined.index.duplicated(keep=keep)]
+
+            try:
+                combined = combined.sort_index()
+            except TypeError:
+                logger.debug(
+                    f"Skipping index sort for item '{item}' because the index is not sortable"
+                )
+
+            npartitions = self._calculate_partitions(combined, npartitions)
+
+            # Write to temporary item and replace
+            tmp_item = self._write_temporary_item(
+                item,
+                combined,
+                data,
+                current,
+                npartitions,
+                threaded,
+                epochdate,
+                reload_items,
+                **kwargs,
+            )
+            self._replace_item_with_temporary(item, tmp_item)
 
     def create_snapshot(self, snapshot=None):
         if snapshot is not None:
@@ -724,11 +732,13 @@ class Collection:
                     )
                     has_mismatch = True
                 else:
+                    existing_multiindex = cast(pd.MultiIndex, existing_index)
+                    new_multiindex = cast(pd.MultiIndex, new_index)
                     for level, (existing_dtype, new_dtype) in enumerate(
-                        zip(existing_index.dtypes, new_index.dtypes)
+                        zip(existing_multiindex.dtypes, new_multiindex.dtypes)
                     ):
                         if not are_dtypes_compatible(existing_dtype, new_dtype):
-                            level_name = existing_index.names[level]
+                            level_name = existing_multiindex.names[level]
                             error_lines.append(
                                 f"  Dtype mismatch for index level {level_name!r}: "
                                 f"existing {existing_dtype}, new {new_dtype}"
@@ -900,50 +910,46 @@ class Collection:
         if npartitions is None:
             npartitions = {}
 
-        # Write function wrapper
         def write_single(item_name, data):
-            try:
-                item_metadata = metadata.get(item_name, {})
-                item_npartitions = npartitions.get(item_name, None)
+            item_metadata = metadata.get(item_name, {})
+            item_npartitions = npartitions.get(item_name, None)
+            self.write(
+                item_name,
+                data,
+                metadata=item_metadata,
+                npartitions=item_npartitions,
+                overwrite=overwrite,
+                epochdate=epochdate,
+                reload_items=False,
+                **kwargs,
+            )
 
-                if parallel:
-                    self.write_threaded(
-                        item_name,
-                        data,
-                        metadata=item_metadata,
-                        npartitions=item_npartitions,
-                        overwrite=overwrite,
-                        epochdate=epochdate,
-                        reload_items=False,
-                        **kwargs,
-                    )
-                else:
-                    self.write(
-                        item_name,
-                        data,
-                        metadata=item_metadata,
-                        npartitions=item_npartitions,
-                        overwrite=overwrite,
-                        epochdate=epochdate,
-                        reload_items=False,
-                        **kwargs,
-                    )
-
-                logger.debug(f"Successfully wrote item '{item_name}'")
-                return True
-            except Exception as e:
-                logger.error(f"Failed to write item '{item_name}': {e}")
-                return False
-
-        # Process all items, tracking failures by name
         failed_items: list[str] = []
-        for item_name, data in items_data.items():
-            if not write_single(item_name, data):
-                failed_items.append(item_name)
-
-        # Wait for parallel tasks if needed
-        if parallel:
-            multitasking.wait_for_tasks()
+        if parallel and items_data:
+            max_workers = min(len(items_data), (os.cpu_count() or 1) + 4)
+            with concurrent.futures.ThreadPoolExecutor(
+                max_workers=max_workers
+            ) as executor:
+                futures = {
+                    executor.submit(write_single, item_name, data): item_name
+                    for item_name, data in items_data.items()
+                }
+                for future in concurrent.futures.as_completed(futures):
+                    item_name = futures[future]
+                    try:
+                        future.result()
+                        logger.debug(f"Successfully wrote item '{item_name}'")
+                    except Exception as e:
+                        logger.error(f"Failed to write item '{item_name}': {e}")
+                        failed_items.append(item_name)
+        else:
+            for item_name, data in items_data.items():
+                try:
+                    write_single(item_name, data)
+                    logger.debug(f"Successfully wrote item '{item_name}'")
+                except Exception as e:
+                    logger.error(f"Failed to write item '{item_name}': {e}")
+                    failed_items.append(item_name)
 
         # Reload items once at the end
         self._list_items_threaded()

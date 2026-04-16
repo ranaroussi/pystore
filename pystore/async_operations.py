@@ -168,10 +168,9 @@ class AsyncCollection:
     ) -> None:
         """Append multiple DataFrames to the same item sequentially.
 
-        The underlying ``collection.append()`` is not thread-safe for the same
-        item — it reads existing data, combines, and swaps.  Concurrent appends
-        would race on that read-compute-swap sequence, causing data loss or
-        corruption.  Therefore appends to the **same** item are serialized.
+        ``collection.append()`` now uses a per-item lock to prevent concurrent
+        swap races, but same-item appends are still serialized here so the
+        caller gets deterministic ordering across the provided DataFrames.
         """
         logger.debug(f"Starting sequential append of {len(dataframes)} DataFrames to '{item}'")
         for df in dataframes:
