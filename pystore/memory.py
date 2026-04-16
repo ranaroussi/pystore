@@ -30,11 +30,18 @@ from typing import Any, Optional
 import dask
 import numpy as np
 import pandas as pd
-import psutil
 
 from .logger import get_logger
 
 logger = get_logger(__name__)
+
+try:
+    import psutil
+
+    _HAS_PSUTIL = True
+except ImportError:  # pragma: no cover
+    _HAS_PSUTIL = False
+    psutil = None  # type: ignore[assignment]
 
 # Memory thresholds
 MEMORY_WARNING_THRESHOLD = 0.8  # Warn when memory usage exceeds 80%
@@ -42,7 +49,13 @@ MEMORY_CRITICAL_THRESHOLD = 0.9  # Take action when memory usage exceeds 90%
 
 
 def get_memory_info() -> dict:
-    """Get current memory usage information"""
+    """Get current memory usage information.
+
+    Returns an empty dict when ``psutil`` is not installed.
+    """
+    if not _HAS_PSUTIL:
+        return {}
+
     memory = psutil.virtual_memory()
     process = psutil.Process()
     process_memory = process.memory_info()
@@ -57,8 +70,13 @@ def get_memory_info() -> dict:
 
 
 def check_memory_usage() -> None:
-    """Check memory usage and log warnings if needed"""
+    """Check memory usage and log warnings if needed.
+
+    Silently returns when ``psutil`` is not installed.
+    """
     info = get_memory_info()
+    if not info:
+        return
 
     if info["used_percent"] > MEMORY_CRITICAL_THRESHOLD:
         logger.warning(
@@ -274,7 +292,8 @@ class MemoryMonitor:
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         final_memory = get_memory_info()
-        if self.initial_memory is None:
+        if not self.initial_memory or not final_memory:
+            gc.collect()
             return
 
         memory_increase = (
@@ -298,24 +317,49 @@ class MemoryMonitor:
 _dask_memory_config_applied = False
 
 
+def _has_distributed_client() -> bool:
+    """Check whether a distributed.Client is currently active."""
+    try:
+        from distributed import get_client
+
+        get_client()
+        return True
+    except (ImportError, ValueError):
+        return False
+
+
 def apply_dask_memory_config() -> None:
     """Apply Dask memory management configuration lazily.
 
     This avoids mutating global Dask configuration at import time, which can
-    break downstream code (e.g., setting ``distributed.worker.memory.*`` when
-    no distributed cluster is active).  Call this explicitly before operations
-    that benefit from the tuned settings.
+    break downstream code.  Distributed-worker settings are only applied when
+    a ``distributed.Client`` is actually active, so they won't interfere with
+    a cluster started later.
+
+    Call this explicitly before operations that benefit from the tuned settings.
     """
     global _dask_memory_config_applied
     if _dask_memory_config_applied:
         return
-    dask.config.set(
-        {
-            "dataframe.query-planning": True,
-            "dataframe.shuffle.method": "disk",  # Use disk for shuffles to save memory
-            "distributed.worker.memory.target": 0.8,  # Spill to disk at 80% memory
-            "distributed.worker.memory.spill": 0.9,  # Spill to disk at 90% memory
-            "distributed.worker.memory.pause": 0.95,  # Pause at 95% memory
-        }
-    )
+
+    config: dict[str, object] = {
+        "dataframe.query-planning": True,
+        "dataframe.shuffle.method": "disk",  # Use disk for shuffles to save memory
+    }
+
+    # Only set distributed.worker.memory.* when a distributed cluster is
+    # actually active.  Setting these without a cluster is harmless from
+    # Dask's perspective but can surprise users who start a cluster later
+    # with different memory policies.
+    if _has_distributed_client():
+        config.update(
+            {
+                "distributed.worker.memory.target": 0.8,
+                "distributed.worker.memory.spill": 0.9,
+                "distributed.worker.memory.pause": 0.95,
+            }
+        )
+        logger.debug("Applied distributed worker memory configuration")
+
+    dask.config.set(config)
     _dask_memory_config_applied = True

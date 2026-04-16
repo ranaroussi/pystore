@@ -48,9 +48,16 @@ class AsyncCollection:
         self._loop: Optional[asyncio.AbstractEventLoop] = None
 
     def _get_loop(self) -> asyncio.AbstractEventLoop:
-        """Get or create event loop"""
+        """Get or create event loop.
+
+        When called from within a running event loop the cached ``_loop`` is
+        updated so that later calls outside any loop will reuse the same
+        instance instead of silently creating a different one.
+        """
         try:
-            return asyncio.get_running_loop()
+            loop = asyncio.get_running_loop()
+            self._loop = loop
+            return loop
         except RuntimeError:
             if self._loop is None:
                 self._loop = asyncio.new_event_loop()
@@ -143,11 +150,15 @@ class AsyncCollection:
         results = await asyncio.gather(*tasks, return_exceptions=True)
         logger.debug(f"Completed async batch read for {len(items)} items")
 
-        # Return dict with results or None for failures
-        return {
-            item: result if not isinstance(result, BaseException) else None
-            for item, result in zip(items, results)
-        }
+        # Return dict with results or None for failures.
+        # Re-raise BaseException subclasses that are not Exception
+        # (e.g. KeyboardInterrupt, SystemExit) instead of swallowing them.
+        output: dict[str, Optional[pd.DataFrame]] = {}
+        for item_name, result in zip(items, results):
+            if isinstance(result, BaseException) and not isinstance(result, Exception):
+                raise result
+            output[item_name] = result if not isinstance(result, Exception) else None
+        return output
 
     async def parallel_append(
         self,

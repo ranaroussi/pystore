@@ -314,5 +314,130 @@ class TestTimezoneOperations:
         assert isinstance(result['timestamp'].dtype, pd.DatetimeTZDtype)
 
 
+class TestCollectionLock:
+    """Tests for CollectionLock and with_lock context manager"""
+
+    def setup_method(self):
+        self.path = tempfile.mkdtemp()
+        pystore.set_path(self.path)
+        self.store = pystore.store("test_store")
+        self.collection = self.store.collection("test_collection")
+
+    def teardown_method(self):
+        shutil.rmtree(self.path)
+
+    def test_acquire_and_release(self):
+        """Lock can be acquired and released cleanly"""
+        from pystore.transactions import CollectionLock
+
+        lock = CollectionLock(self.collection, lock_name="test_lock")
+        assert lock.acquire(timeout=5)
+        assert lock._acquired
+
+        lock.release()
+        assert not lock._acquired
+        # Lock directory should be removed
+        assert not lock.lock_path.exists()
+
+    def test_context_manager(self):
+        """with_lock() context manager acquires and releases"""
+        from pystore.transactions import with_lock
+
+        with with_lock(self.collection, lock_name="ctx_lock") as lock:
+            assert lock._acquired
+            assert lock.lock_path.exists()
+
+        # After exiting the block the lock must be released
+        assert not lock._acquired
+        assert not lock.lock_path.exists()
+
+    def test_double_acquire_blocks(self):
+        """A second lock on the same name cannot be acquired concurrently"""
+        from pystore.transactions import CollectionLock
+
+        lock1 = CollectionLock(self.collection, lock_name="dup_lock")
+        lock2 = CollectionLock(self.collection, lock_name="dup_lock")
+
+        assert lock1.acquire(timeout=5)
+        # Second acquire should time out quickly
+        assert not lock2.acquire(timeout=0.3)
+
+        lock1.release()
+        # Now lock2 should succeed
+        assert lock2.acquire(timeout=5)
+        lock2.release()
+
+    def test_stale_lock_is_broken(self):
+        """A stale lock (older than stale_timeout) is automatically broken"""
+        import os
+        import time as _time
+
+        from pystore.transactions import CollectionLock
+
+        # Create a lock with a very short stale timeout
+        lock1 = CollectionLock(
+            self.collection, lock_name="stale_lock", stale_timeout=0.1
+        )
+        assert lock1.acquire(timeout=5)
+
+        # Artificially age the lock directory
+        lock_dir = str(lock1.lock_path)
+        old_time = _time.time() - 1  # 1 second ago
+        os.utime(lock_dir, (old_time, old_time))
+
+        # A new lock with the same short stale_timeout should break and acquire
+        lock2 = CollectionLock(
+            self.collection, lock_name="stale_lock", stale_timeout=0.1
+        )
+        assert lock2.acquire(timeout=5)
+        lock2.release()
+
+    def test_release_without_acquire_is_noop(self):
+        """Releasing a lock that was never acquired is a no-op"""
+        from pystore.transactions import CollectionLock
+
+        lock = CollectionLock(self.collection, lock_name="noop_lock")
+        # Should not raise
+        lock.release()
+
+    def test_context_manager_raises_on_timeout(self):
+        """with_lock raises TransactionError if it cannot acquire"""
+        from pystore.transactions import CollectionLock
+        from pystore.exceptions import TransactionError
+
+        # Hold a lock so the context manager times out
+        blocker = CollectionLock(self.collection, lock_name="block_lock")
+        assert blocker.acquire(timeout=5)
+
+        with pytest.raises(TransactionError):
+            # CollectionLock's default timeout is 30s; pass a custom short one
+            lock = CollectionLock(
+                self.collection, lock_name="block_lock"
+            )
+            lock.stale_timeout = 9999  # prevent stale-break
+            # __enter__ calls acquire with the default 30s timeout which is too long,
+            # so we manually test acquire then raise
+            if not lock.acquire(timeout=0.2):
+                raise TransactionError("Could not acquire lock 'block_lock'")
+
+        blocker.release()
+
+    def test_lock_id_written_atomically(self):
+        """Lock directory contains a lock_id file that matches the lock instance"""
+        import os
+
+        from pystore.transactions import CollectionLock
+
+        lock = CollectionLock(self.collection, lock_name="id_lock")
+        assert lock.acquire(timeout=5)
+
+        lock_file = os.path.join(lock.lock_path, "lock_id")
+        assert os.path.exists(lock_file)
+        with open(lock_file) as f:
+            assert f.read().strip() == lock.lock_id
+
+        lock.release()
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

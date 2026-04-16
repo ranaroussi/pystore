@@ -20,7 +20,6 @@
 
 import os
 import shutil
-import tempfile
 import time
 from typing import Any, Optional, Union
 
@@ -163,7 +162,7 @@ class Collection:
 
         try:
             shutil.rmtree(self._item_path(item))
-            self.items.remove(item)
+            self.items.discard(item)
             if reload_items:
                 self.items = self._list_items_threaded()
             logger.info(f"Successfully deleted item '{item}'")
@@ -245,12 +244,13 @@ class Collection:
         metadata = metadata.copy()
         metadata["_transform_metadata"] = transform_metadata
 
-        # Handle complex data types
-        data, type_info = DataTypeHandler.serialize_complex_types(data)
+        # Handle complex data types — skip internal copy because
+        # _prepare_write_data already gave us a private copy.
+        data, type_info = DataTypeHandler.serialize_complex_types(data, copy=False)
         metadata["_type_info"] = type_info
 
-        # Handle timezone-aware data
-        data, tz_info = TimezoneHandler.prepare_timezone_data(data)
+        # Handle timezone-aware data (same: already a private copy)
+        data, tz_info = TimezoneHandler.prepare_timezone_data(data, copy=False)
         metadata["_timezone_info"] = tz_info
 
         # Convert datetime to int64 if needed
@@ -403,28 +403,6 @@ class Collection:
             data = evolution.evolve_dataframe(data, target_schema)
             return evolved_current_df, data
         return None, data
-
-    def _filter_duplicate_indices(self, item, data, epochdate):
-        """Filter out duplicate indices from new data."""
-        try:
-            if epochdate or (
-                "datetime" in str(data.index.dtype)
-                and data.index.nanosecond.any()
-            ):
-                data = utils.datetime_to_int64(data)
-            old_index = dd.read_parquet(
-                self._item_path(item, as_string=True), columns=[], engine="pyarrow"
-            ).index.compute()
-            data = data[~data.index.isin(old_index)]
-        except FileNotFoundError:
-            # No existing data to filter against - this is expected for new items
-            logger.debug(
-                f"No existing data found for item '{item}' - skipping duplicate filtering"
-            )
-        except Exception as e:
-            # Log the error but continue - duplicate filtering is not critical
-            logger.warning(f"Failed to filter duplicates for item '{item}': {str(e)}")
-        return data
 
     def _combine_dataframes(self, current, data, evolved_current_df):
         """Combine current and new dataframes, handling schema evolution and MultiIndex."""
@@ -709,118 +687,6 @@ class Collection:
 
             raise ValidationError(error_msg)
 
-    def _handle_duplicates(
-        self,
-        existing_data: dd.DataFrame,
-        new_data: Union[pd.DataFrame, dd.DataFrame],
-        strategy: str,
-    ) -> tuple:
-        """Handle duplicate indices based on strategy"""
-        if strategy == "keep_all":
-            return new_data, False
-
-        # Get existing index efficiently
-        existing_index = existing_data.index.compute()
-        new_index = new_data.index
-
-        # Find overlapping indices
-        if isinstance(new_index, dd.Index):
-            new_index = new_index.compute()
-
-        overlapping_indices = existing_index.intersection(new_index)
-        has_duplicates = len(overlapping_indices) > 0
-
-        if has_duplicates:
-            logger.info(f"Found {len(overlapping_indices)} overlapping indices")
-
-            if strategy == "error":
-                raise DataIntegrityError(
-                    f"Found {len(overlapping_indices)} duplicate indices. "
-                    "Use duplicate_handling='keep_last' or 'keep_first' to handle them."
-                )
-            elif strategy == "keep_first":
-                # Remove overlapping indices from new data
-                new_data = new_data[~new_data.index.isin(overlapping_indices)]
-                logger.debug(
-                    f"Removed {len(overlapping_indices)} duplicate rows from new data"
-                )
-
-        return new_data, has_duplicates
-
-    def _atomic_write(
-        self,
-        item: str,
-        data: dd.DataFrame,
-        metadata: dict,
-        npartitions: int,
-        epochdate: bool = False,
-        **kwargs,
-    ) -> None:
-        """Perform atomic write operation using temporary directory"""
-        tmp_dir = None
-
-        try:
-            # Create temporary directory in the same filesystem
-            tmp_dir = tempfile.mkdtemp(
-                dir=utils.make_path(self.datastore, self.collection)
-            )
-            tmp_path = utils.make_path(tmp_dir, "data")
-
-            logger.debug(f"Writing to temporary location: {tmp_path}")
-
-            # Write data to temporary location
-            dd.to_parquet(
-                data,
-                str(tmp_path),
-                compression="snappy",
-                engine="pyarrow",
-                write_metadata_file=True,
-                **kwargs,
-            )
-
-            # Write metadata
-            utils.write_metadata(tmp_path, metadata)
-
-            # Get paths
-            final_path = self._item_path(item)
-            backup_path = self._item_path(f"_backup_{item}")
-
-            # Create backup of existing data
-            if utils.path_exists(final_path):
-                logger.debug(f"Creating backup at: {backup_path}")
-                if utils.path_exists(backup_path):
-                    shutil.rmtree(backup_path)
-                shutil.move(str(final_path), str(backup_path))
-
-            # Move temporary data to final location
-            logger.debug(f"Moving data to final location: {final_path}")
-            shutil.move(str(tmp_path), str(final_path))
-
-            # Remove backup on success
-            if utils.path_exists(backup_path):
-                logger.debug("Removing backup after successful write")
-                shutil.rmtree(backup_path)
-
-        except Exception:
-            # Restore from backup if it exists.
-            # A partial shutil.move() may have created an incomplete final_path,
-            # so always remove it before restoring the backup.
-            backup_path = self._item_path(f"_backup_{item}")
-            if utils.path_exists(backup_path):
-                logger.warning("Restoring from backup due to write failure")
-                final_path = self._item_path(item)
-                try:
-                    if utils.path_exists(final_path):
-                        shutil.rmtree(final_path)
-                except OSError:
-                    logger.error(f"Failed to remove incomplete final_path: {final_path}")
-                shutil.move(str(backup_path), str(final_path))
-            raise
-        finally:
-            # Clean up temporary directory
-            if tmp_dir and os.path.exists(tmp_dir):
-                shutil.rmtree(tmp_dir)
-
     def append_stream(
         self,
         item: str,
@@ -830,10 +696,15 @@ class Collection:
         duplicate_handling: str = "keep_last",
         validate_schema: bool = True,
         reload_items: bool = True,
+        flush_every: int = 10,
         **kwargs,
     ) -> None:
         """
-        Stream append data to an existing item for memory efficiency
+        Stream append data to an existing item for memory efficiency.
+
+        Chunks are accumulated in memory and flushed to disk periodically
+        (every ``flush_every`` chunks) instead of per-chunk, which avoids
+        the O(M*N) materialisation overhead of the previous implementation.
 
         Parameters
         ----------
@@ -851,6 +722,8 @@ class Collection:
             Validate schema compatibility before appending
         reload_items : bool, default True
             Reload items list after append
+        flush_every : int, default 10
+            Number of chunks to accumulate before flushing to disk
         **kwargs
             Additional parameters for to_parquet
         """
@@ -866,6 +739,24 @@ class Collection:
         current_item = self.item(item)
         schema_validated = False
         total_rows_appended = 0
+        buffer: list[pd.DataFrame] = []
+
+        def _flush_buffer() -> None:
+            """Concatenate buffered chunks and append once."""
+            nonlocal buffer
+            if not buffer:
+                return
+            combined = pd.concat(buffer, axis=0)
+            self.append(
+                item,
+                combined,
+                epochdate=epochdate,
+                duplicate_handling=duplicate_handling,
+                validate_schema=False,  # Already validated
+                reload_items=False,  # Reload only at end
+                **kwargs,
+            )
+            buffer = []
 
         try:
             for chunk_num, data_chunk in enumerate(data_iterator):
@@ -878,30 +769,33 @@ class Collection:
                     logger.debug(f"Skipping empty chunk {chunk_num}")
                     continue
 
-                # Validate schema on first chunk
+                # Validate schema on first chunk — compare against the
+                # *restored* pandas representation, not the raw Dask
+                # DataFrame.  For MultiIndex or complex-type items the
+                # on-disk columns differ from the pandas-visible columns.
                 if validate_schema and not schema_validated:
                     logger.debug("Validating schema compatibility")
-                    self._validate_schema_compatibility(current_item.data, data_chunk)
+                    self._validate_schema_compatibility(
+                        current_item.to_pandas(), data_chunk
+                    )
                     schema_validated = True
 
-                # Process chunk
-                logger.debug(
-                    f"Processing chunk {chunk_num} with {len(data_chunk)} rows"
-                )
-                self.append(
-                    item,
-                    data_chunk,
-                    epochdate=epochdate,
-                    duplicate_handling=duplicate_handling,
-                    validate_schema=False,  # Already validated
-                    reload_items=False,  # Reload only at end
-                    **kwargs,
-                )
-
+                buffer.append(data_chunk)
                 total_rows_appended += len(data_chunk)
                 logger.debug(
-                    f"Appended {len(data_chunk)} rows (total: {total_rows_appended})"
+                    f"Buffered chunk {chunk_num} with {len(data_chunk)} rows "
+                    f"(total: {total_rows_appended})"
                 )
+
+                # Flush when buffer reaches the threshold
+                if len(buffer) >= flush_every:
+                    logger.debug(
+                        f"Flushing {len(buffer)} buffered chunks to disk"
+                    )
+                    _flush_buffer()
+
+            # Flush any remaining buffered chunks
+            _flush_buffer()
 
             if reload_items:
                 self._list_items_threaded()

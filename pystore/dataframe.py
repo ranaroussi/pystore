@@ -246,10 +246,23 @@ class DataTypeHandler:
     }
 
     @staticmethod
-    def serialize_complex_types(df: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
-        """Serialize complex pandas types for storage"""
+    def serialize_complex_types(
+        df: pd.DataFrame, copy: bool = True
+    ) -> tuple[pd.DataFrame, dict]:
+        """Serialize complex pandas types for storage
+
+        Parameters
+        ----------
+        df : pd.DataFrame
+            DataFrame to serialize
+        copy : bool, default True
+            Whether to copy the DataFrame before mutating.  Pass ``False``
+            when the caller already owns a private copy (e.g. the write
+            pipeline) to avoid an extra memory allocation.
+        """
         type_info: dict[str, dict[str, Any]] = {}
-        df = df.copy()
+        if copy:
+            df = df.copy()
 
         for col in df.columns:
             dtype = df[col].dtype
@@ -328,7 +341,7 @@ class TimezoneHandler:
 
     @staticmethod
     def prepare_timezone_data(
-        df: pd.DataFrame, target_tz: str = "UTC"
+        df: pd.DataFrame, target_tz: str = "UTC", copy: bool = True
     ) -> tuple[pd.DataFrame, dict]:
         """
         Prepare timezone-aware data for storage
@@ -339,6 +352,10 @@ class TimezoneHandler:
             DataFrame with potential timezone-aware columns
         target_tz : str, default 'UTC'
             Target timezone for conversion
+        copy : bool, default True
+            Whether to copy the DataFrame before mutating.  Pass ``False``
+            when the caller already owns a private copy to avoid an extra
+            memory allocation.
 
         Returns
         -------
@@ -346,7 +363,8 @@ class TimezoneHandler:
             DataFrame with converted times and timezone metadata
         """
         tz_info = {}
-        df = df.copy()
+        if copy:
+            df = df.copy()
 
         # Handle timezone-aware index
         if hasattr(df.index, "tz") and df.index.tz is not None:

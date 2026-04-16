@@ -5,7 +5,12 @@ Tests for PyStore performance optimizations
 import numpy as np
 import pandas as pd
 
-from pystore.memory import MemoryMonitor, optimize_dataframe_memory, read_in_chunks
+from pystore.memory import (
+    MemoryMonitor,
+    apply_dask_memory_config,
+    optimize_dataframe_memory,
+    read_in_chunks,
+)
 from pystore.partition import rebalance_partitions
 
 
@@ -296,3 +301,56 @@ class TestPerformanceOptimizations:
 
         assert all(df_filtered2["category"] == "B")
         assert all(df_filtered2["flag"])
+
+
+class TestDaskMemoryConfig:
+    """Tests for apply_dask_memory_config()"""
+
+    def test_apply_sets_dataframe_config(self):
+        """apply_dask_memory_config sets core dataframe settings."""
+        import dask
+
+        import pystore.memory as mem
+
+        # Reset guard so the function actually runs
+        mem._dask_memory_config_applied = False
+        try:
+            apply_dask_memory_config()
+
+            assert dask.config.get("dataframe.shuffle.method") == "disk"
+            # The function should mark itself as applied
+            assert mem._dask_memory_config_applied is True
+        finally:
+            mem._dask_memory_config_applied = False
+
+    def test_idempotent(self):
+        """Calling apply_dask_memory_config twice is a no-op on the second call."""
+        import pystore.memory as mem
+
+        mem._dask_memory_config_applied = False
+        try:
+            apply_dask_memory_config()
+            first_state = mem._dask_memory_config_applied
+            apply_dask_memory_config()  # should be a no-op
+            assert first_state is True
+            assert mem._dask_memory_config_applied is True
+        finally:
+            mem._dask_memory_config_applied = False
+
+    def test_skips_distributed_config_without_cluster(self):
+        """distributed.worker.memory.* should NOT be set when no cluster is active."""
+        import dask
+
+        import pystore.memory as mem
+
+        mem._dask_memory_config_applied = False
+        try:
+            apply_dask_memory_config()
+            # Without a distributed client, the distributed config keys
+            # should retain their Dask defaults (not our custom values).
+            # We check that our function didn't forcibly set them.
+            target = dask.config.get("distributed.worker.memory.target", default=None)
+            # Dask's default target is 0.6, ours would be 0.8
+            assert target != 0.8 or target is None
+        finally:
+            mem._dask_memory_config_applied = False
