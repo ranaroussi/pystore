@@ -37,14 +37,14 @@ logger = get_logger(__name__)
 
 def _is_string_compatible_dtype(dtype: Any) -> bool:
     """Return True when a dtype belongs to the string/object compatibility set."""
-    return isinstance(dtype, pd.StringDtype) or pd.api.types.is_object_dtype(dtype)
+    return isinstance(dtype, pd.StringDtype) or bool(pd.api.types.is_object_dtype(dtype))
 
 
 def _is_numeric_compatible_dtype(dtype: Any) -> bool:
     """Return True for integer/unsigned/float dtypes, excluding bool."""
     if pd.api.types.is_bool_dtype(dtype):
         return False
-    return (
+    return bool(
         pd.api.types.is_integer_dtype(dtype)
         or pd.api.types.is_unsigned_integer_dtype(dtype)
         or pd.api.types.is_float_dtype(dtype)

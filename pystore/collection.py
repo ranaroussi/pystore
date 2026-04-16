@@ -716,16 +716,24 @@ class Collection:
                 )
                 has_mismatch = True
             else:
-                for level, (existing_dtype, new_dtype) in enumerate(
-                    zip(existing_index.dtypes, new_index.dtypes)
-                ):
-                    if not are_dtypes_compatible(existing_dtype, new_dtype):
-                        level_name = existing_index.names[level]
-                        error_lines.append(
-                            f"  Dtype mismatch for index level {level_name!r}: "
-                            f"existing {existing_dtype}, new {new_dtype}"
-                        )
-                        has_mismatch = True
+                if existing_index.nlevels != new_index.nlevels:
+                    error_lines.append(
+                        f"  MultiIndex level count mismatch: "
+                        f"existing has {existing_index.nlevels} levels, "
+                        f"new has {new_index.nlevels} levels"
+                    )
+                    has_mismatch = True
+                else:
+                    for level, (existing_dtype, new_dtype) in enumerate(
+                        zip(existing_index.dtypes, new_index.dtypes)
+                    ):
+                        if not are_dtypes_compatible(existing_dtype, new_dtype):
+                            level_name = existing_index.names[level]
+                            error_lines.append(
+                                f"  Dtype mismatch for index level {level_name!r}: "
+                                f"existing {existing_dtype}, new {new_dtype}"
+                            )
+                            has_mismatch = True
         elif not are_dtypes_compatible(existing_index.dtype, new_index.dtype):
             error_lines.append(
                 "  Dtype mismatch for index: "
