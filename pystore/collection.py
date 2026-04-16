@@ -120,18 +120,16 @@ class Collection:
 
     def get_item_metadata(self, item: str, use_cache: bool = True) -> dict[str, Any]:
         """Get item metadata with optional caching"""
-        import time
-
         # Check cache first if enabled
         if use_cache and item in self._metadata_cache:
             # Check if cache is still valid (5 minutes)
             if time.time() - self._cache_timestamp.get(item, 0) < 300:
                 logger.debug(f"Using cached metadata for item '{item}'")
-                return dict(self._metadata_cache[item].copy())
+                return self._metadata_cache[item].copy()
 
         # Read metadata from disk
         metadata_path = utils.make_path(self.datastore, self.collection, item)
-        metadata = dict(utils.read_metadata(metadata_path))
+        metadata = utils.read_metadata(metadata_path)
 
         # Update cache
         if use_cache:
