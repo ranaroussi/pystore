@@ -23,6 +23,7 @@ import os
 import shutil
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any, Optional, cast
 
 import numpy as np
 import pandas as pd
@@ -88,17 +89,17 @@ def path_exists(path):
     return Path(path).exists()
 
 
-def read_metadata(path):
+def read_metadata(path) -> dict[str, Any]:
     """use this to construct paths for future storage support"""
     dest = make_path(path, "pystore_metadata.json")
     if path_exists(dest):
         with dest.open() as f:
-            return json.load(f)
+            return cast(dict[str, Any], json.load(f))
     else:
         return {}
 
 
-def write_metadata(path, metadata=None):
+def write_metadata(path, metadata: Optional[dict[str, Any]] = None) -> None:
     """use this to construct paths for future storage support"""
     if metadata is None:
         metadata = {}
@@ -183,7 +184,7 @@ def delete_stores():
     return True
 
 
-def set_client(scheduler=None):
+def set_client(scheduler: Optional[Any] = None) -> Optional[Client]:
     if scheduler != config._SCHEDULER and config._CLIENT is not None:
         try:
             config._CLIENT.shutdown()
@@ -198,7 +199,7 @@ def set_client(scheduler=None):
     return config._CLIENT
 
 
-def get_client():
+def get_client() -> Optional[Client]:
     return config._CLIENT
 
 

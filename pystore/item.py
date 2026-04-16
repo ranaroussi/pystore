@@ -18,6 +18,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import cast
+
 import dask.dataframe as dd
 import pandas as pd
 
@@ -139,7 +141,7 @@ class Item:
         # No freq metadata (item written before this fix) – fall back to
         # inference for backward compatibility.
         try:
-            inferred_freq = pd.infer_freq(df.index)
+            inferred_freq = pd.infer_freq(cast(pd.DatetimeIndex, df.index))
         except (TypeError, ValueError):
             inferred_freq = None
 

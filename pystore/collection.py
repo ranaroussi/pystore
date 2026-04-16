@@ -59,8 +59,8 @@ class Collection:
         self.collection = collection
         self.items = self.list_items()
         self.snapshots = self.list_snapshots()
-        self._metadata_cache = {}  # Cache for item metadata
-        self._cache_timestamp = {}
+        self._metadata_cache: dict[str, dict[str, Any]] = {}  # Cache for item metadata
+        self._cache_timestamp: dict[str, float] = {}
         self._validator = None  # Data validator
         self._schema_evolutions = {}  # Schema evolution per item
 

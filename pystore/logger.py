@@ -35,7 +35,7 @@ def get_logger(name: str) -> logging.Logger:
 def setup_logging(level: Optional[str] = None) -> None:
     """
     Setup logging for PyStore
-    
+
     Parameters
     ----------
     level : str, optional
@@ -45,15 +45,15 @@ def setup_logging(level: Optional[str] = None) -> None:
     """
     if level is None:
         level = os.environ.get('PYSTORE_LOG_LEVEL', 'WARNING')
-    
+
     # Configure root logger for pystore
     logger = logging.getLogger('pystore')
     logger.setLevel(getattr(logging, level.upper()))
-    
+
     # Remove existing handlers to avoid duplicates
     for handler in logger.handlers[:]:
         logger.removeHandler(handler)
-    
+
     # Create console handler with formatting
     handler = logging.StreamHandler()
     formatter = logging.Formatter(
@@ -62,7 +62,7 @@ def setup_logging(level: Optional[str] = None) -> None:
     )
     handler.setFormatter(formatter)
     logger.addHandler(handler)
-    
+
     # Prevent propagation to root logger
     logger.propagate = False
 

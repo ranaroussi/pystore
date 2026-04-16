@@ -23,7 +23,7 @@ Advanced DataFrame handling for PyStore including MultiIndex support
 """
 
 import json
-from typing import Any, Union, cast
+from typing import Any, Optional, Union, cast
 
 import dask.dataframe as dd
 import numpy as np
@@ -95,18 +95,18 @@ def prepare_dataframe_for_storage(df: pd.DataFrame) -> tuple[pd.DataFrame, dict]
                     metadata["complex_columns"][col] = "json"
 
                     # Handle null check properly for arrays and other objects
-                    def safe_json_dumps(x):
+                    def safe_json_dumps(x: Any) -> Optional[str]:
                         try:
                             if x is None:
                                 return None
-                            elif isinstance(x, np.ndarray):
-                                return json.dumps(x.tolist())
-                            elif isinstance(x, (np.complex64, np.complex128)):
-                                return json.dumps({"real": x.real, "imag": x.imag})
-                            elif isinstance(x, np.datetime64):
-                                return json.dumps(str(pd.Timestamp(x)))
-                            else:
-                                return json.dumps(x)
+                            payload: Any = x
+                            if isinstance(x, np.ndarray):
+                                payload = x.tolist()
+                            if isinstance(x, (np.complex64, np.complex128)):
+                                payload = {"real": x.real, "imag": x.imag}
+                            if isinstance(x, np.datetime64):
+                                payload = str(pd.Timestamp(x))
+                            return json.dumps(payload)
                         except (TypeError, ValueError) as e:
                             logger.error(f"Failed to serialize object: {e}")
                             return None
@@ -162,7 +162,7 @@ def restore_dataframe_from_storage(df: pd.DataFrame, metadata: dict) -> pd.DataF
             # For MultiIndex, we need to reconstruct with correct dtypes
             multi_index = cast(pd.MultiIndex, df.index)
             if multi_index.nlevels > 1:
-                new_levels = []
+                new_levels: list[Any] = []
                 for i, dtype_str in enumerate(metadata["index_dtypes"]):
                     level = multi_index.levels[i]
                     if dtype_str == "object" and str(level.dtype).startswith("string"):
@@ -225,9 +225,9 @@ class MultiIndexHandler:
     ) -> pd.DataFrame:
         """Handle duplicates in MultiIndex DataFrames"""
         if strategy == "keep_last":
-            return df[~df.index.duplicated(keep="last")]
+            return cast(pd.DataFrame, df[~df.index.duplicated(keep="last")])
         elif strategy == "keep_first":
-            return df[~df.index.duplicated(keep="first")]
+            return cast(pd.DataFrame, df[~df.index.duplicated(keep="first")])
         elif strategy == "keep_all":
             return df
         else:

@@ -99,6 +99,9 @@ extend-exclude = '''
 [tool.ruff]
 line-length = 88
 target-version = "py39"
+extend-exclude = ["tests", "examples"]
+
+[tool.ruff.lint]
 select = [
     "E",    # pycodestyle errors
     "W",    # pycodestyle warnings
@@ -115,7 +118,7 @@ ignore = [
     "W191",  # indentation contains tabs
 ]
 
-[tool.ruff.per-file-ignores]
+[tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401"]
 
 [tool.mypy]
@@ -132,6 +135,7 @@ warn_unused_ignores = true
 warn_no_return = true
 warn_unreachable = true
 strict_equality = true
+follow_imports = "skip"
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
