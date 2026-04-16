@@ -438,6 +438,14 @@ class TestCollectionLock:
 
         lock.release()
 
+    @pytest.mark.parametrize("lock_name", ["", "..", "../escape", "nested/name"])
+    def test_rejects_invalid_lock_names(self, lock_name):
+        """Lock names must stay within the collection directory."""
+        from pystore.transactions import CollectionLock
+
+        with pytest.raises(ValueError):
+            CollectionLock(self.collection, lock_name=lock_name)
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

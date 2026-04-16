@@ -312,11 +312,11 @@ class CollectionLock:
         stale_timeout: float = 300.0,
     ):
         self.collection = collection
-        self.lock_name = lock_name
+        self.lock_name = utils.validate_identifier(lock_name, "Lock")
         self.lock_path = utils.make_path(
             collection.datastore,
             collection.collection,
-            f".lock_{lock_name}",
+            f".lock_{self.lock_name}",
         )
         self.lock_id = str(uuid.uuid4())
         self.stale_timeout = stale_timeout

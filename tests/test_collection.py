@@ -7,6 +7,17 @@ import pytest
 
 import pystore
 
+INVALID_NAMES = [
+    "",
+    "   ",
+    ".",
+    "..",
+    "../escape",
+    "nested/name",
+    r"nested\name",
+    "/tmp/abs",
+]
+
 
 class TestCollection:
     """Test collection operations"""
@@ -48,6 +59,15 @@ class TestCollection:
         with pytest.raises(pystore.CollectionNotFoundError):
             test_store.delete_collection("nonexistent")
 
+    @pytest.mark.parametrize("collection_name", INVALID_NAMES)
+    def test_rejects_invalid_collection_names(self, test_store, collection_name):
+        """Collection APIs reject empty, nested, and escaping names."""
+        with pytest.raises(ValueError):
+            test_store.collection(collection_name)
+
+        with pytest.raises(ValueError):
+            test_store.delete_collection(collection_name)
+
     def test_list_items(self, test_collection, sample_data):
         """Test listing items in a collection"""
         # Write multiple items
@@ -72,6 +92,18 @@ class TestCollection:
         assert "item1" in items_a
         assert "item3" in items_a
         assert "item2" not in items_a
+
+    @pytest.mark.parametrize("item_name", INVALID_NAMES)
+    def test_rejects_invalid_item_names(self, test_collection, sample_data, item_name):
+        """Item APIs reject empty, nested, and escaping names."""
+        with pytest.raises(ValueError):
+            test_collection.write(item_name, sample_data)
+
+        with pytest.raises(ValueError):
+            test_collection.item(item_name)
+
+        with pytest.raises(ValueError):
+            test_collection.delete_item(item_name)
 
 
 class TestAppendValidateSchemaTransformed:

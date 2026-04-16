@@ -39,27 +39,35 @@ class Item:
         self, item, datastore, collection, snapshot=None, filters=None, columns=None
     ):
         self.datastore = datastore
-        self.collection = collection
-        self.snapshot = snapshot
-        self.item = item
+        self.collection = utils.validate_identifier(collection, "Collection")
+        self.item = utils.validate_identifier(item, "Item")
 
-        self._path = utils.make_path(datastore, collection, item)
-        if not self._path.exists():
-            raise ItemNotFoundError(
-                f"Item '{item}' doesn't exist. "
-                f"Create it using collection.write('{item}', data, ...)"
+        if snapshot is not None:
+            self.snapshot = utils.validate_identifier(snapshot, "Snapshot")
+            snap_path = utils.make_path(
+                datastore,
+                self.collection,
+                "_snapshots",
+                self.snapshot,
             )
-        if snapshot:
-            snap_path = utils.make_path(datastore, collection, "_snapshots", snapshot)
-
-            self._path = utils.make_path(snap_path, item)
-
             if not utils.path_exists(snap_path):
-                raise SnapshotNotFoundError(f"Snapshot '{snapshot}' doesn't exist")
+                raise SnapshotNotFoundError(
+                    f"Snapshot '{self.snapshot}' doesn't exist"
+                )
+
+            self._path = utils.make_path(snap_path, self.item)
 
             if not utils.path_exists(self._path):
                 raise ItemNotFoundError(
-                    f"Item '{item}' doesn't exist in snapshot '{snapshot}'"
+                    f"Item '{self.item}' doesn't exist in snapshot '{self.snapshot}'"
+                )
+        else:
+            self.snapshot = None
+            self._path = utils.make_path(datastore, self.collection, self.item)
+            if not self._path.exists():
+                raise ItemNotFoundError(
+                    f"Item '{self.item}' doesn't exist. "
+                    f"Create it using collection.write('{self.item}', data, ...)"
                 )
 
         self.metadata = utils.read_metadata(self._path)
