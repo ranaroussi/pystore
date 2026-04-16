@@ -227,8 +227,6 @@ class Collection:
         reload_items=False,
         **kwargs,
     ):
-        if metadata is None:
-            metadata = {}
         return self.write(
             item,
             data,
