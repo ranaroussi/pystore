@@ -18,17 +18,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
-from datetime import datetime
 import json
+import os
 import shutil
-import pandas as pd
+from datetime import datetime, timezone
+from pathlib import Path
+
 import numpy as np
+import pandas as pd
 from dask import dataframe as dd
 from dask.distributed import Client
-
-
-from pathlib import Path
 
 from . import config
 
@@ -63,31 +62,34 @@ def read_csv(urlpath, *args, **kwargs):
 
 
 def datetime_to_int64(df):
-    """ convert datetime index to epoch int
+    """convert datetime index to epoch int
     allows for cross language/platform portability
     """
 
     if isinstance(df.index, dd.Index) and (
-            isinstance(df.index, pd.DatetimeIndex) and
-            any(df.index.nanosecond) > 0):
+        isinstance(df.index, pd.DatetimeIndex) and any(df.index.nanosecond) > 0
+    ):
         df.index = df.index.astype(np.int64)  # / 1e9
 
     return df
 
 
 def subdirs(d):
-    """ use this to construct paths for future storage support """
-    return [o.parts[-1] for o in Path(d).iterdir()
-            if o.is_dir() and o.parts[-1] != "_snapshots"]
+    """use this to construct paths for future storage support"""
+    return [
+        o.parts[-1]
+        for o in Path(d).iterdir()
+        if o.is_dir() and o.parts[-1] != "_snapshots"
+    ]
 
 
 def path_exists(path):
-    """ use this to construct paths for future storage support """
-    return path.exists()
+    """use this to construct paths for future storage support"""
+    return Path(path).exists()
 
 
 def read_metadata(path):
-    """ use this to construct paths for future storage support """
+    """use this to construct paths for future storage support"""
     dest = make_path(path, "pystore_metadata.json")
     if path_exists(dest):
         with dest.open() as f:
@@ -96,10 +98,14 @@ def read_metadata(path):
         return {}
 
 
-def write_metadata(path, metadata={}):
-    """ use this to construct paths for future storage support """
+def write_metadata(path, metadata=None):
+    """use this to construct paths for future storage support"""
+    if metadata is None:
+        metadata = {}
     now = datetime.now(timezone.utc)  # Use UTC for consistency
-    metadata["_updated"] = now.strftime("%Y-%m-%d %H:%M:%S.%f")  # Correctly formats minutes using %M
+    metadata["_updated"] = now.strftime(
+        "%Y-%m-%d %H:%M:%S.%f"
+    )  # Correctly formats minutes using %M
     meta_file = make_path(path, "pystore_metadata.json")
     # Ensure parent directory exists
     meta_file.parent.mkdir(parents=True, exist_ok=True)
@@ -108,20 +114,20 @@ def write_metadata(path, metadata={}):
 
 
 def make_path(*args):
-    """ use this to construct paths for future storage support """
+    """use this to construct paths for future storage support"""
     # return Path(os.path.join(*args))
     return Path(*args)
 
 
 def get_path(*args):
-    """ use this to construct paths for future storage support """
+    """use this to construct paths for future storage support"""
     # return Path(os.path.join(config.DEFAULT_PATH, *args))
     return Path(config.DEFAULT_PATH, *args)
 
 
 def set_path(path=None):
     """Set the base path for PyStore data
-    
+
     Parameters
     ----------
     path : str or Path, optional
@@ -130,20 +136,26 @@ def set_path(path=None):
     if path is None:
         path = Path.home() / "pystore"
     else:
+        path_str = str(path)
+        if "://" in path_str and "file://" not in path_str:
+            raise ValueError("PyStore currently only works with local file system")
+
         # Handle both string and Path objects
-        path = Path(path).expanduser().resolve()
-    
+        path = Path(path).expanduser()
+        if not path.is_absolute():
+            path = path.absolute()
+
     # Validate path
     path_str = str(path)
     if "://" in path_str and "file://" not in path_str:
         raise ValueError("PyStore currently only works with local file system")
-    
+
     # Create directory if it doesn't exist
     try:
         path.mkdir(parents=True, exist_ok=True)
-    except PermissionError:
-        raise PermissionError(f"Cannot create directory at {path}")
-    
+    except PermissionError as err:
+        raise PermissionError(f"Cannot create directory at {path}") from err
+
     # Store as string for compatibility
     config.DEFAULT_PATH = str(path)
     return path

@@ -22,67 +22,72 @@
 Advanced DataFrame handling for PyStore including MultiIndex support
 """
 
-import pandas as pd
-import numpy as np
-import dask.dataframe as dd
-import pyarrow as pa
-import pyarrow.parquet as pq
-from typing import Union, List, Tuple, Optional
 import json
+from typing import Any, Union, cast
 
+import dask.dataframe as dd
+import numpy as np
+import pandas as pd
+
+from .exceptions import ValidationError
 from .logger import get_logger
-from .exceptions import ValidationError, StorageError
 
 logger = get_logger(__name__)
 
 
-def prepare_dataframe_for_storage(df: pd.DataFrame) -> Tuple[pd.DataFrame, dict]:
+def prepare_dataframe_for_storage(df: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
     """
     Prepare DataFrame for storage, handling MultiIndex and special types
-    
+
     Parameters
     ----------
     df : pd.DataFrame
         DataFrame to prepare
-    
+
     Returns
     -------
     pd.DataFrame, dict
         Prepared DataFrame and metadata about transformations
     """
-    metadata = {
-        'has_multiindex': False,
-        'index_names': None,
-        'index_dtypes': None,
-        'original_columns': list(df.columns),
-        'complex_columns': {}
+    metadata: dict[str, Any] = {
+        "has_multiindex": False,
+        "index_names": None,
+        "index_dtypes": None,
+        "column_dtypes": {col: str(dtype) for col, dtype in df.dtypes.items()},
+        "original_columns": list(df.columns),
+        "complex_columns": {},
     }
-    
+
     # Handle MultiIndex
     if isinstance(df.index, pd.MultiIndex):
         logger.debug("Converting MultiIndex to columns for storage")
-        metadata['has_multiindex'] = True
-        metadata['index_names'] = list(df.index.names)
-        metadata['index_dtypes'] = [str(df.index.get_level_values(i).dtype) 
-                                   for i in range(df.index.nlevels)]
-        
+        metadata["has_multiindex"] = True
+        metadata["index_names"] = [
+            name if name is None else str(name) for name in df.index.names
+        ]
+        metadata["index_dtypes"] = [
+            str(df.index.get_level_values(i).dtype) for i in range(df.index.nlevels)
+        ]
+
         # Reset index to convert MultiIndex to columns
         df = df.reset_index()
     else:
         # Store single index info
-        metadata['index_names'] = [df.index.name or 'index']
-        metadata['index_dtypes'] = [str(df.index.dtype)]
-    
+        index_name = df.index.name
+        metadata["index_names"] = [index_name if index_name is not None else "index"]
+        metadata["index_dtypes"] = [str(df.index.dtype)]
+
     # Handle complex data types
     for col in df.columns:
-        if df[col].dtype == 'object':
+        if df[col].dtype == "object":
             # Check for nested structures
             sample = df[col].dropna().iloc[0] if not df[col].dropna().empty else None
-            
+
             if sample is not None:
                 if isinstance(sample, (list, dict, set)):
                     logger.debug(f"Converting complex column '{col}' to JSON")
-                    metadata['complex_columns'][col] = 'json'
+                    metadata["complex_columns"][col] = "json"
+
                     # Handle null check properly for arrays and other objects
                     def safe_json_dumps(x):
                         try:
@@ -93,90 +98,108 @@ def prepare_dataframe_for_storage(df: pd.DataFrame) -> Tuple[pd.DataFrame, dict]
                             elif isinstance(x, (np.complex64, np.complex128)):
                                 return json.dumps({"real": x.real, "imag": x.imag})
                             elif isinstance(x, np.datetime64):
-                                return json.dumps(str(x.astype('M8[ms]').item()))
+                                return json.dumps(str(pd.Timestamp(x)))
                             else:
                                 return json.dumps(x)
                         except (TypeError, ValueError) as e:
                             logger.error(f"Failed to serialize object: {e}")
                             return None
+
                     df[col] = df[col].apply(safe_json_dumps)
                 elif isinstance(sample, pd.DataFrame):
                     logger.debug(f"Converting nested DataFrame column '{col}' to JSON")
-                    metadata['complex_columns'][col] = 'dataframe'
+                    metadata["complex_columns"][col] = "dataframe"
                     df[col] = df[col].apply(
-                        lambda x: x.to_json() if pd.notna(x) and isinstance(x, pd.DataFrame) else None
+                        lambda x: x.to_json() if isinstance(x, pd.DataFrame) else None
                     )
-    
+
     return df, metadata
 
 
 def restore_dataframe_from_storage(df: pd.DataFrame, metadata: dict) -> pd.DataFrame:
     """
     Restore DataFrame to original structure after reading from storage
-    
+
     Parameters
     ----------
     df : pd.DataFrame
         DataFrame read from storage
     metadata : dict
         Metadata about transformations
-    
+
     Returns
     -------
     pd.DataFrame
         Restored DataFrame with original structure
     """
     # Restore complex columns
-    for col, col_type in metadata.get('complex_columns', {}).items():
+    for col, col_type in metadata.get("complex_columns", {}).items():
         if col in df.columns:
-            if col_type == 'json':
-                df[col] = df[col].apply(lambda x: json.loads(x) if pd.notna(x) else None)
-            elif col_type == 'dataframe':
+            if col_type == "json":
+                df[col] = df[col].apply(
+                    lambda x: json.loads(x) if pd.notna(x) else None
+                )
+            elif col_type == "dataframe":
                 df[col] = df[col].apply(
                     lambda x: pd.read_json(x) if pd.notna(x) else None
                 )
-    
+
     # Restore MultiIndex if needed
-    if metadata.get('has_multiindex', False):
-        index_names = metadata['index_names']
-        
+    if metadata.get("has_multiindex", False):
+        index_names = metadata["index_names"]
+
         # Set MultiIndex
         df = df.set_index(index_names)
-        
+
         # Restore index dtypes if possible
-        if 'index_dtypes' in metadata and metadata['index_dtypes']:
+        if "index_dtypes" in metadata and metadata["index_dtypes"]:
             # For MultiIndex, we need to reconstruct with correct dtypes
-            if df.index.nlevels > 1:
+            multi_index = cast(pd.MultiIndex, df.index)
+            if multi_index.nlevels > 1:
                 new_levels = []
-                for i, dtype_str in enumerate(metadata['index_dtypes']):
-                    level = df.index.levels[i]
-                    if dtype_str == 'object' and str(level.dtype).startswith('string'):
+                for i, dtype_str in enumerate(metadata["index_dtypes"]):
+                    level = multi_index.levels[i]
+                    if dtype_str == "object" and str(level.dtype).startswith("string"):
                         # Convert string[pyarrow] back to object dtype
-                        new_levels.append(level.astype('object'))
+                        new_levels.append(level.astype("object"))
                     else:
                         new_levels.append(level)
-                df.index = df.index.set_levels(new_levels)
-    
+                df.index = multi_index.set_levels(cast(Any, new_levels))
+
+    # Restore original string-like columns back to plain object dtype for compatibility
+    for col, dtype_str in metadata.get("column_dtypes", {}).items():
+        if (
+            col in df.columns
+            and dtype_str in {"object", "string"}
+            and str(df[col].dtype).startswith("string")
+        ):
+            df[col] = df[col].astype("object")
+
     return df
 
 
 class MultiIndexHandler:
     """Handler for MultiIndex operations"""
-    
+
     @staticmethod
-    def validate_multiindex_append(existing_df: Union[pd.DataFrame, dd.DataFrame],
-                                 new_df: pd.DataFrame) -> None:
+    def validate_multiindex_append(
+        existing_df: Union[pd.DataFrame, dd.DataFrame], new_df: pd.DataFrame
+    ) -> None:
         """Validate that MultiIndex structures are compatible for append"""
-        if isinstance(existing_df.index, pd.MultiIndex) != isinstance(new_df.index, pd.MultiIndex):
-            raise ValidationError("Cannot append single index data to MultiIndex data or vice versa")
-        
+        if isinstance(existing_df.index, pd.MultiIndex) != isinstance(
+            new_df.index, pd.MultiIndex
+        ):
+            raise ValidationError(
+                "Cannot append single index data to MultiIndex data or vice versa"
+            )
+
         if isinstance(existing_df.index, pd.MultiIndex):
             if existing_df.index.nlevels != new_df.index.nlevels:
                 raise ValidationError(
                     f"MultiIndex level mismatch: existing has {existing_df.index.nlevels} levels, "
                     f"new has {new_df.index.nlevels} levels"
                 )
-            
+
             # Check level names match
             existing_names = existing_df.index.names
             new_names = new_df.index.names
@@ -184,15 +207,17 @@ class MultiIndexHandler:
                 raise ValidationError(
                     f"MultiIndex names mismatch: existing {existing_names}, new {new_names}"
                 )
-    
+
     @staticmethod
-    def handle_multiindex_duplicates(df: pd.DataFrame, strategy: str = 'keep_last') -> pd.DataFrame:
+    def handle_multiindex_duplicates(
+        df: pd.DataFrame, strategy: str = "keep_last"
+    ) -> pd.DataFrame:
         """Handle duplicates in MultiIndex DataFrames"""
-        if strategy == 'keep_last':
-            return df[~df.index.duplicated(keep='last')]
-        elif strategy == 'keep_first':
-            return df[~df.index.duplicated(keep='first')]
-        elif strategy == 'keep_all':
+        if strategy == "keep_last":
+            return df[~df.index.duplicated(keep="last")]
+        elif strategy == "keep_first":
+            return df[~df.index.duplicated(keep="first")]
+        elif strategy == "keep_all":
             return df
         else:
             raise ValueError(f"Unknown duplicate strategy: {strategy}")
@@ -200,101 +225,110 @@ class MultiIndexHandler:
 
 class DataTypeHandler:
     """Handler for complex data types"""
-    
+
     # Supported complex types
     COMPLEX_TYPES = {
-        'timedelta': pd.Timedelta,
-        'period': pd.Period,
-        'interval': pd.Interval,
-        'category': pd.Categorical
+        "timedelta": pd.Timedelta,
+        "period": pd.Period,
+        "interval": pd.Interval,
+        "category": pd.Categorical,
     }
-    
+
     @staticmethod
-    def serialize_complex_types(df: pd.DataFrame) -> Tuple[pd.DataFrame, dict]:
+    def serialize_complex_types(df: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
         """Serialize complex pandas types for storage"""
-        type_info = {}
+        type_info: dict[str, dict[str, Any]] = {}
         df = df.copy()
-        
+
         for col in df.columns:
             dtype = df[col].dtype
-            
+
             if pd.api.types.is_timedelta64_dtype(dtype):
                 # Convert timedelta to nanoseconds
-                type_info[col] = {'type': 'timedelta', 'unit': 'ns'}
-                df[col] = df[col].astype('int64')
-                
+                type_info[col] = {"type": "timedelta", "unit": "ns"}
+                df[col] = df[col].astype("int64")
+
             elif isinstance(dtype, pd.PeriodDtype):
                 # Convert period to string representation
-                type_info[col] = {'type': 'period', 'freq': dtype.freq.name}
+                type_info[col] = {"type": "period", "freq": dtype.freq.name}
                 df[col] = df[col].astype(str)
-                
+
             elif isinstance(dtype, pd.IntervalDtype):
                 # Split interval into left/right columns
-                type_info[col] = {'type': 'interval', 'closed': dtype.closed}
-                df[f'{col}_left'] = df[col].apply(lambda x: x.left if pd.notna(x) else np.nan)
-                df[f'{col}_right'] = df[col].apply(lambda x: x.right if pd.notna(x) else np.nan)
+                type_info[col] = {
+                    "type": "interval",
+                    "closed": getattr(dtype, "closed", "right"),
+                }
+                df[f"{col}_left"] = df[col].apply(
+                    lambda x: x.left if pd.notna(x) else np.nan
+                )
+                df[f"{col}_right"] = df[col].apply(
+                    lambda x: x.right if pd.notna(x) else np.nan
+                )
                 df = df.drop(columns=[col])
-                
+
             elif isinstance(dtype, pd.CategoricalDtype):
                 # Store categories separately
                 type_info[col] = {
-                    'type': 'category',
-                    'categories': df[col].cat.categories.tolist(),
-                    'ordered': df[col].cat.ordered
+                    "type": "category",
+                    "categories": df[col].cat.categories.tolist(),
+                    "ordered": df[col].cat.ordered,
                 }
                 df[col] = df[col].cat.codes
-        
+
         return df, type_info
-    
+
     @staticmethod
     def deserialize_complex_types(df: pd.DataFrame, type_info: dict) -> pd.DataFrame:
         """Deserialize complex pandas types after reading"""
         df = df.copy()
-        
+
         for col, info in type_info.items():
-            if info['type'] == 'timedelta':
-                df[col] = pd.to_timedelta(df[col], unit=info['unit'])
-                
-            elif info['type'] == 'period':
+            if info["type"] == "timedelta":
+                df[col] = pd.to_timedelta(df[col], unit=info["unit"])
+
+            elif info["type"] == "period":
                 # Handle frequency changes in pandas (ME -> M for periods)
-                freq = info['freq']
-                if freq == 'ME':
-                    freq = 'M'
+                freq = info["freq"]
+                if freq == "ME":
+                    freq = "M"
                 df[col] = pd.PeriodIndex(df[col], freq=freq)
-                
-            elif info['type'] == 'interval':
+
+            elif info["type"] == "interval":
                 # Reconstruct interval from left/right columns
-                left_col = f'{col}_left'
-                right_col = f'{col}_right'
+                left_col = f"{col}_left"
+                right_col = f"{col}_right"
                 if left_col in df.columns and right_col in df.columns:
                     df[col] = pd.IntervalIndex.from_arrays(
-                        df[left_col], df[right_col], closed=info['closed']
+                        df[left_col], df[right_col], closed=info["closed"]
                     )
                     df = df.drop(columns=[left_col, right_col])
-                    
-            elif info['type'] == 'category':
+
+            elif info["type"] == "category":
                 df[col] = pd.Categorical.from_codes(
-                    df[col], categories=info['categories'], ordered=info['ordered']
+                    df[col], categories=info["categories"], ordered=info["ordered"]
                 )
-        
+
         return df
 
 
 class TimezoneHandler:
     """Handler for timezone-aware datetime operations"""
-    
+
     @staticmethod
-    def prepare_timezone_data(df: pd.DataFrame, target_tz: str = 'UTC') -> Tuple[pd.DataFrame, dict]:
+    def prepare_timezone_data(
+        df: pd.DataFrame, target_tz: str = "UTC"
+    ) -> tuple[pd.DataFrame, dict]:
         """
         Prepare timezone-aware data for storage
-        
+
         Parameters
         ----------
         df : pd.DataFrame
             DataFrame with potential timezone-aware columns
         target_tz : str, default 'UTC'
             Target timezone for conversion
-        
+
         Returns
         -------
         pd.DataFrame, dict
@@ -302,75 +336,93 @@ class TimezoneHandler:
         """
         tz_info = {}
         df = df.copy()
-        
+
         # Handle timezone-aware index
-        if hasattr(df.index, 'tz') and df.index.tz is not None:
+        if hasattr(df.index, "tz") and df.index.tz is not None:
             original_tz = str(df.index.tz)
-            tz_info['index_tz'] = original_tz
+            tz_info["index_tz"] = original_tz
             logger.debug(f"Converting index from {original_tz} to {target_tz}")
-            df.index = df.index.tz_convert(target_tz)
-        
+            df.index = cast(pd.DatetimeIndex, df.index).tz_convert(target_tz)
+
         # Handle timezone-aware columns
         for col in df.columns:
             if isinstance(df[col].dtype, pd.DatetimeTZDtype):
                 original_tz = str(df[col].dt.tz)
-                tz_info[f'column_{col}_tz'] = original_tz
-                logger.debug(f"Converting column '{col}' from {original_tz} to {target_tz}")
+                tz_info[f"column_{col}_tz"] = original_tz
+                logger.debug(
+                    f"Converting column '{col}' from {original_tz} to {target_tz}"
+                )
                 df[col] = df[col].dt.tz_convert(target_tz)
-        
+
         return df, tz_info
-    
+
     @staticmethod
     def restore_timezone_data(df: pd.DataFrame, tz_info: dict) -> pd.DataFrame:
         """
         Restore timezone information after reading
-        
+
         Parameters
         ----------
         df : pd.DataFrame
             DataFrame to restore timezones to
         tz_info : dict
             Timezone metadata
-        
+
         Returns
         -------
         pd.DataFrame
             DataFrame with restored timezone information
         """
         df = df.copy()
-        
+
         # Restore index timezone
-        if 'index_tz' in tz_info and pd.api.types.is_datetime64_any_dtype(df.index):
+        if "index_tz" in tz_info and pd.api.types.is_datetime64_any_dtype(df.index):
             logger.debug(f"Restoring index timezone to {tz_info['index_tz']}")
             # Check if index is already timezone-aware
-            if hasattr(df.index, 'tz') and df.index.tz is not None:
+            if hasattr(df.index, "tz") and df.index.tz is not None:
                 # Already has timezone, just convert
-                df.index = df.index.tz_convert(tz_info['index_tz'])
+                df.index = cast(pd.DatetimeIndex, df.index).tz_convert(
+                    tz_info["index_tz"]
+                )
             else:
                 # No timezone, localize first then convert
-                df.index = pd.to_datetime(df.index).tz_localize('UTC').tz_convert(tz_info['index_tz'])
-        
+                df.index = (
+                    pd.to_datetime(df.index)
+                    .tz_localize("UTC")
+                    .tz_convert(tz_info["index_tz"])
+                )
+
         # Restore column timezones
         for key, tz in tz_info.items():
-            if key.startswith('column_') and key.endswith('_tz'):
+            if key.startswith("column_") and key.endswith("_tz"):
                 col = key[7:-3]  # Extract column name
                 if col in df.columns and pd.api.types.is_datetime64_any_dtype(df[col]):
                     logger.debug(f"Restoring column '{col}' timezone to {tz}")
                     # Check if column is already timezone-aware
-                    if hasattr(df[col], 'dt') and hasattr(df[col].dt, 'tz') and df[col].dt.tz is not None:
+                    if (
+                        hasattr(df[col], "dt")
+                        and hasattr(df[col].dt, "tz")
+                        and df[col].dt.tz is not None
+                    ):
                         # Already has timezone, just convert
                         df[col] = df[col].dt.tz_convert(tz)
                     else:
                         # No timezone, localize first then convert
-                        df[col] = pd.to_datetime(df[col]).dt.tz_localize('UTC').dt.tz_convert(tz)
-        
+                        df[col] = (
+                            pd.to_datetime(df[col])
+                            .dt.tz_localize("UTC")
+                            .dt.tz_convert(tz)
+                        )
+
         return df
-    
+
     @staticmethod
-    def align_timezones(df1: pd.DataFrame, df2: pd.DataFrame, target_tz: str = 'UTC') -> Tuple[pd.DataFrame, pd.DataFrame]:
+    def align_timezones(
+        df1: pd.DataFrame, df2: pd.DataFrame, target_tz: str = "UTC"
+    ) -> tuple[pd.DataFrame, pd.DataFrame]:
         """
         Align timezones between two DataFrames for operations like append
-        
+
         Parameters
         ----------
         df1 : pd.DataFrame
@@ -379,7 +431,7 @@ class TimezoneHandler:
             Second DataFrame
         target_tz : str, default 'UTC'
             Target timezone for alignment
-        
+
         Returns
         -------
         pd.DataFrame, pd.DataFrame
@@ -387,51 +439,57 @@ class TimezoneHandler:
         """
         df1 = df1.copy()
         df2 = df2.copy()
-        
+
         # Align index timezones
-        if hasattr(df1.index, 'tz') and hasattr(df2.index, 'tz'):
+        if hasattr(df1.index, "tz") and hasattr(df2.index, "tz"):
             if df1.index.tz != df2.index.tz:
                 logger.debug(f"Aligning index timezones to {target_tz}")
                 if df1.index.tz is not None:
-                    df1.index = df1.index.tz_convert(target_tz)
+                    df1.index = cast(pd.DatetimeIndex, df1.index).tz_convert(target_tz)
                 else:
-                    df1.index = df1.index.tz_localize(target_tz)
-                    
+                    df1.index = cast(pd.DatetimeIndex, df1.index).tz_localize(
+                        target_tz
+                    )
+
                 if df2.index.tz is not None:
-                    df2.index = df2.index.tz_convert(target_tz)
+                    df2.index = cast(pd.DatetimeIndex, df2.index).tz_convert(target_tz)
                 else:
-                    df2.index = df2.index.tz_localize(target_tz)
-        
+                    df2.index = cast(pd.DatetimeIndex, df2.index).tz_localize(
+                        target_tz
+                    )
+
         # Align column timezones
         for col in df1.columns:
             if col in df2.columns:
-                if pd.api.types.is_datetime64tz_dtype(df1[col]) or pd.api.types.is_datetime64tz_dtype(df2[col]):
+                df1_has_tz = isinstance(df1[col].dtype, pd.DatetimeTZDtype)
+                df2_has_tz = isinstance(df2[col].dtype, pd.DatetimeTZDtype)
+                if df1_has_tz or df2_has_tz:
                     logger.debug(f"Aligning column '{col}' timezones to {target_tz}")
-                    
+
                     # Convert df1 column
-                    if pd.api.types.is_datetime64tz_dtype(df1[col]):
+                    if df1_has_tz:
                         df1[col] = df1[col].dt.tz_convert(target_tz)
                     elif pd.api.types.is_datetime64_any_dtype(df1[col]):
                         df1[col] = pd.to_datetime(df1[col]).dt.tz_localize(target_tz)
-                    
+
                     # Convert df2 column
-                    if pd.api.types.is_datetime64tz_dtype(df2[col]):
+                    if df2_has_tz:
                         df2[col] = df2[col].dt.tz_convert(target_tz)
                     elif pd.api.types.is_datetime64_any_dtype(df2[col]):
                         df2[col] = pd.to_datetime(df2[col]).dt.tz_localize(target_tz)
-        
+
         return df1, df2
 
 
 def validate_dataframe_for_storage(df: pd.DataFrame) -> None:
     """
     Validate DataFrame is suitable for storage
-    
+
     Parameters
     ----------
     df : pd.DataFrame
         DataFrame to validate
-    
+
     Raises
     ------
     ValidationError
@@ -441,21 +499,27 @@ def validate_dataframe_for_storage(df: pd.DataFrame) -> None:
     if df.columns.duplicated().any():
         duplicates = df.columns[df.columns.duplicated()].unique()
         raise ValidationError(f"Duplicate column names found: {list(duplicates)}")
-    
+
     # Check for extremely nested MultiIndex (>5 levels)
     if isinstance(df.index, pd.MultiIndex) and df.index.nlevels > 5:
-        logger.warning(f"DataFrame has {df.index.nlevels} index levels. "
-                      "This may impact performance.")
-    
+        logger.warning(
+            f"DataFrame has {df.index.nlevels} index levels. "
+            "This may impact performance."
+        )
+
     # Check for very wide DataFrames
     if len(df.columns) > 1000:
-        logger.warning(f"DataFrame has {len(df.columns)} columns. "
-                      "Consider using a different data structure.")
-    
+        logger.warning(
+            f"DataFrame has {len(df.columns)} columns. "
+            "Consider using a different data structure."
+        )
+
     # Check for mixed types in columns (can cause issues)
     for col in df.columns:
-        if df[col].dtype == 'object':
-            types = df[col].dropna().apply(type).unique()
+        if df[col].dtype == "object":
+            types = {type(value) for value in df[col].dropna().tolist()}
             if len(types) > 1:
-                logger.warning(f"Column '{col}' has mixed types: {types}. "
-                             "This may cause storage issues.")
+                logger.warning(
+                    f"Column '{col}' has mixed types: {types}. "
+                    "This may cause storage issues."
+                )

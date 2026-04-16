@@ -22,19 +22,20 @@ import dask.dataframe as dd
 import pandas as pd
 
 from . import utils
+from .dataframe import DataTypeHandler, TimezoneHandler, restore_dataframe_from_storage
 from .exceptions import ItemNotFoundError, SnapshotNotFoundError
 from .logger import get_logger
-from .dataframe import restore_dataframe_from_storage, DataTypeHandler, TimezoneHandler
 
 logger = get_logger(__name__)
 
 
-class Item(object):
+class Item:
     def __repr__(self):
-        return "PyStore.item <%s/%s>" % (self.collection, self.item)
+        return f"PyStore.item <{self.collection}/{self.item}>"
 
-    def __init__(self, item, datastore, collection,
-                 snapshot=None, filters=None, columns=None):
+    def __init__(
+        self, item, datastore, collection, snapshot=None, filters=None, columns=None
+    ):
         self.datastore = datastore
         self.collection = collection
         self.snapshot = snapshot
@@ -47,8 +48,7 @@ class Item(object):
                 f"Create it using collection.write('{item}', data, ...)"
             )
         if snapshot:
-            snap_path = utils.make_path(
-                datastore, collection, "_snapshots", snapshot)
+            snap_path = utils.make_path(datastore, collection, "_snapshots", snapshot)
 
             self._path = utils.make_path(snap_path, item)
 
@@ -62,22 +62,29 @@ class Item(object):
 
         self.metadata = utils.read_metadata(self._path)
         self.data = dd.read_parquet(
-            self._path, engine="pyarrow", filters=filters, columns=columns)
+            self._path, engine="pyarrow", filters=filters, columns=columns
+        )
 
     def to_pandas(self, parse_dates=True):
         df = self.data.compute()
 
         # Restore complex types if needed
-        if '_type_info' in self.metadata:
-            df = DataTypeHandler.deserialize_complex_types(df, self.metadata['_type_info'])
-        
+        if "_type_info" in self.metadata:
+            df = DataTypeHandler.deserialize_complex_types(
+                df, self.metadata["_type_info"]
+            )
+
         # Restore MultiIndex and other transformations
-        if '_transform_metadata' in self.metadata:
-            df = restore_dataframe_from_storage(df, self.metadata['_transform_metadata'])
-        
+        if "_transform_metadata" in self.metadata:
+            df = restore_dataframe_from_storage(
+                df, self.metadata["_transform_metadata"]
+            )
+
         # Restore timezone information
-        if '_timezone_info' in self.metadata:
-            df = TimezoneHandler.restore_timezone_data(df, self.metadata['_timezone_info'])
+        if "_timezone_info" in self.metadata:
+            df = TimezoneHandler.restore_timezone_data(
+                df, self.metadata["_timezone_info"]
+            )
 
         if parse_dates and "datetime" not in str(df.index.dtype):
             if not isinstance(df.index, pd.MultiIndex):  # Only for single index
@@ -91,6 +98,27 @@ class Item(object):
                 if original_name is None:
                     df.index.name = None
 
+        df = self._restore_datetime_frequency(df)
+
+        return df
+
+    def _restore_datetime_frequency(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Restore DatetimeIndex frequency when parquet round-trips drop it."""
+        if isinstance(df.index, pd.MultiIndex) or not isinstance(
+            df.index, pd.DatetimeIndex
+        ):
+            return df
+
+        try:
+            inferred_freq = pd.infer_freq(df.index)
+        except (TypeError, ValueError):
+            inferred_freq = None
+
+        if inferred_freq is None:
+            return df
+
+        df = df.copy()
+        df.index = pd.DatetimeIndex(df.index, freq=inferred_freq, name=df.index.name)
         return df
 
     def head(self, n=5):
