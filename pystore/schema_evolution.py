@@ -38,6 +38,7 @@ logger = get_logger(__name__)
 
 class EvolutionStrategy(Enum):
     """Schema evolution strategies"""
+
     STRICT = "strict"  # No schema changes allowed
     ADD_ONLY = "add_only"  # Only allow adding new columns
     COMPATIBLE = "compatible"  # Allow compatible changes (add columns, widen types)
@@ -55,16 +56,16 @@ class SchemaChange:
 
     def to_dict(self) -> dict:
         return {
-            'change_type': self.change_type,
-            'column': self.column,
-            'details': self.details,
-            'timestamp': self.timestamp.isoformat()
+            "change_type": self.change_type,
+            "column": self.column,
+            "details": self.details,
+            "timestamp": self.timestamp.isoformat(),
         }
 
     @classmethod
-    def from_dict(cls, data: dict) -> 'SchemaChange':
-        change = cls(data['change_type'], data['column'], data['details'])
-        change.timestamp = datetime.fromisoformat(data['timestamp'])
+    def from_dict(cls, data: dict) -> "SchemaChange":
+        change = cls(data["change_type"], data["column"], data["details"])
+        change.timestamp = datetime.fromisoformat(data["timestamp"])
         return change
 
 
@@ -87,28 +88,25 @@ class Schema:
 
     def to_dict(self) -> dict:
         return {
-            'columns': self.columns,
-            'dtypes': self.dtypes,
-            'index_dtype': self.index_dtype,
-            'version': self.version,
-            'created_at': self.created_at.isoformat(),
-            'changes': [change.to_dict() for change in self.changes]
+            "columns": self.columns,
+            "dtypes": self.dtypes,
+            "index_dtype": self.index_dtype,
+            "version": self.version,
+            "created_at": self.created_at.isoformat(),
+            "changes": [change.to_dict() for change in self.changes],
         }
 
     @classmethod
-    def from_dict(cls, data: dict) -> 'Schema':
+    def from_dict(cls, data: dict) -> "Schema":
         schema = cls(
-            data['columns'],
-            data['dtypes'],
-            data['index_dtype'],
-            data['version']
+            data["columns"], data["dtypes"], data["index_dtype"], data["version"]
         )
-        schema.created_at = datetime.fromisoformat(data['created_at'])
-        schema.changes = [SchemaChange.from_dict(c) for c in data.get('changes', [])]
+        schema.created_at = datetime.fromisoformat(data["created_at"])
+        schema.changes = [SchemaChange.from_dict(c) for c in data.get("changes", [])]
         return schema
 
     @classmethod
-    def from_dataframe(cls, df: pd.DataFrame, version: int = 1) -> 'Schema':
+    def from_dataframe(cls, df: pd.DataFrame, version: int = 1) -> "Schema":
         """Create schema from DataFrame"""
         columns = df.columns.tolist()
         dtypes = {col: str(df[col].dtype) for col in columns}
@@ -116,50 +114,57 @@ class Schema:
 
         return cls(columns, dtypes, index_dtype, version)
 
-    def detect_changes(self, other: 'Schema') -> list[SchemaChange]:
+    def detect_changes(self, other: "Schema") -> list[SchemaChange]:
         """Detect changes between this schema and another"""
         changes: list[SchemaChange] = []
 
         # Check for added columns
         added_cols = set(other.columns) - set(self.columns)
         for col in added_cols:
-            changes.append(SchemaChange(
-                'column_added', col,
-                {'dtype': other.dtypes[col]}
-            ))
+            changes.append(
+                SchemaChange("column_added", col, {"dtype": other.dtypes[col]})
+            )
 
         # Check for removed columns
         removed_cols = set(self.columns) - set(other.columns)
         for col in removed_cols:
-            changes.append(SchemaChange(
-                'column_removed', col,
-                {'dtype': self.dtypes[col]}
-            ))
+            changes.append(
+                SchemaChange("column_removed", col, {"dtype": self.dtypes[col]})
+            )
 
         # Check for type changes
         common_cols = set(self.columns) & set(other.columns)
         for col in common_cols:
             if self.dtypes[col] != other.dtypes[col]:
-                changes.append(SchemaChange(
-                    'type_changed', col,
-                    {'old_dtype': self.dtypes[col], 'new_dtype': other.dtypes[col]}
-                ))
+                changes.append(
+                    SchemaChange(
+                        "type_changed",
+                        col,
+                        {"old_dtype": self.dtypes[col], "new_dtype": other.dtypes[col]},
+                    )
+                )
 
         # Check for column reordering
         common_cols_list = [col for col in other.columns if col in self.columns]
         self_common_cols = [col for col in self.columns if col in other.columns]
         if common_cols_list != self_common_cols:
-            changes.append(SchemaChange(
-                'columns_reordered', '',
-                {'old_order': self_common_cols, 'new_order': common_cols_list}
-            ))
+            changes.append(
+                SchemaChange(
+                    "columns_reordered",
+                    "",
+                    {"old_order": self_common_cols, "new_order": common_cols_list},
+                )
+            )
 
         # Check index type change
         if self.index_dtype != other.index_dtype:
-            changes.append(SchemaChange(
-                'index_type_changed', '',
-                {'old_dtype': self.index_dtype, 'new_dtype': other.index_dtype}
-            ))
+            changes.append(
+                SchemaChange(
+                    "index_type_changed",
+                    "",
+                    {"old_dtype": self.index_dtype, "new_dtype": other.index_dtype},
+                )
+            )
 
         return changes
 
@@ -195,20 +200,19 @@ class SchemaEvolution:
         elif self.strategy == EvolutionStrategy.ADD_ONLY:
             # Only allow adding columns
             for change in changes:
-                if change.change_type != 'column_added':
+                if change.change_type != "column_added":
                     return False
             return True
 
         elif self.strategy == EvolutionStrategy.COMPATIBLE:
             # Allow adding columns and compatible type changes
             for change in changes:
-                if change.change_type == 'column_removed':
+                if change.change_type == "column_removed":
                     return False
-                elif change.change_type == 'type_changed':
+                elif change.change_type == "type_changed":
                     # Check if type change is compatible
                     if not self._is_compatible_type_change(
-                        change.details['old_dtype'],
-                        change.details['new_dtype']
+                        change.details["old_dtype"], change.details["new_dtype"]
                     ):
                         return False
             return True
@@ -222,17 +226,20 @@ class SchemaEvolution:
     def _is_compatible_type_change(self, old_dtype: str, new_dtype: str) -> bool:
         """Check if a type change is compatible"""
         compatible_changes = {
-            ('int32', 'int64'),
-            ('int16', 'int32'),
-            ('int16', 'int64'),
-            ('float32', 'float64'),
-            ('int32', 'float64'),
-            ('int64', 'float64'),
+            ("int32", "int64"),
+            ("int16", "int32"),
+            ("int16", "int64"),
+            ("float32", "float64"),
+            ("int32", "float64"),
+            ("int64", "float64"),
         }
         # Allow any type to object
-        compatible_changes.update({
-            (old_dtype, 'object') for old_dtype in ['int32', 'int64', 'float32', 'float64', 'bool']
-        })
+        compatible_changes.update(
+            {
+                (old_dtype, "object")
+                for old_dtype in ["int32", "int64", "float32", "float64", "bool"]
+            }
+        )
 
         return (old_dtype, new_dtype) in compatible_changes
 
@@ -249,7 +256,9 @@ class SchemaEvolution:
     def get_target_schema(self, old_df: pd.DataFrame, new_df: pd.DataFrame) -> Schema:
         """Get the target schema after merging two DataFrames"""
         # For ADD_ONLY strategy, we merge columns from both
-        all_columns = list(old_df.columns) + [col for col in new_df.columns if col not in old_df.columns]
+        all_columns = list(old_df.columns) + [
+            col for col in new_df.columns if col not in old_df.columns
+        ]
         dtypes: dict[str, str] = {}
 
         # Get dtypes from old dataframe
@@ -272,13 +281,13 @@ class SchemaEvolution:
             if col not in df.columns:
                 # Determine default value based on dtype
                 dtype_str = target_schema.dtypes[col]
-                if 'int' in dtype_str:
+                if "int" in dtype_str:
                     df[col] = 0
-                elif 'float' in dtype_str:
+                elif "float" in dtype_str:
                     df[col] = 0.0
-                elif 'bool' in dtype_str:
+                elif "bool" in dtype_str:
                     df[col] = False
-                elif 'datetime' in dtype_str:
+                elif "datetime" in dtype_str:
                     df[col] = pd.NaT
                 else:
                     df[col] = None
@@ -292,33 +301,39 @@ class SchemaEvolution:
             logger.debug(f"Removed columns: {extra_cols}")
 
         # Reorder columns to match schema
-        df = cast(pd.DataFrame, df.loc[:, target_schema.columns])
+        df = df.loc[:, target_schema.columns]
 
         # Convert types
         for col, dtype_str in target_schema.dtypes.items():
             if col in df.columns:
                 try:
-                    if 'int' in dtype_str:
+                    if "int" in dtype_str:
                         df[col] = pd.to_numeric(
                             df[col],
-                            errors='coerce',
+                            errors="coerce",
                         ).astype(cast(Any, dtype_str))
-                    elif 'float' in dtype_str:
+                    elif "float" in dtype_str:
                         df[col] = pd.to_numeric(
                             df[col],
-                            errors='coerce',
+                            errors="coerce",
                         ).astype(cast(Any, dtype_str))
-                    elif 'datetime' in dtype_str:
-                        df[col] = pd.to_datetime(df[col], errors='coerce')
-                    elif 'bool' in dtype_str:
+                    elif "datetime" in dtype_str:
+                        df[col] = pd.to_datetime(df[col], errors="coerce")
+                    elif "bool" in dtype_str:
                         df[col] = df[col].astype(bool)
                 except Exception as e:
-                    logger.warning(f"Failed to convert column '{col}' to {dtype_str}: {e}")
+                    logger.warning(
+                        f"Failed to convert column '{col}' to {dtype_str}: {e}"
+                    )
 
         return df
 
-    def register_migration(self, from_version: int, to_version: int,
-                         migration_func: Callable[[pd.DataFrame], pd.DataFrame]):
+    def register_migration(
+        self,
+        from_version: int,
+        to_version: int,
+        migration_func: Callable[[pd.DataFrame], pd.DataFrame],
+    ):
         """Register a custom migration function between versions"""
         self.migration_functions[(from_version, to_version)] = migration_func
         logger.info(f"Registered migration from version {from_version} to {to_version}")
@@ -347,14 +362,18 @@ class SchemaEvolution:
 
         return migrated_data
 
-    def migrate(self, df: pd.DataFrame, from_version: int, to_version: int) -> pd.DataFrame:
+    def migrate(
+        self, df: pd.DataFrame, from_version: int, to_version: int
+    ) -> pd.DataFrame:
         """Migrate DataFrame from one version to another"""
         if from_version == to_version:
             return df
 
         # Check for direct migration
         if (from_version, to_version) in self.migration_functions:
-            logger.info(f"Applying direct migration from {from_version} to {to_version}")
+            logger.info(
+                f"Applying direct migration from {from_version} to {to_version}"
+            )
             return self.migration_functions[(from_version, to_version)](df)
 
         # Try step-by-step migration
@@ -365,14 +384,20 @@ class SchemaEvolution:
             next_version = current_version + 1
 
             if (current_version, next_version) in self.migration_functions:
-                logger.info(f"Applying migration from {current_version} to {next_version}")
-                result = self.migration_functions[(current_version, next_version)](result)
+                logger.info(
+                    f"Applying migration from {current_version} to {next_version}"
+                )
+                result = self.migration_functions[(current_version, next_version)](
+                    result
+                )
             else:
                 # Use automatic evolution
                 if next_version in self.schemas:
                     result = self.evolve_dataframe(result, self.schemas[next_version])
                 else:
-                    raise SchemaError(f"No migration path from version {current_version} to {next_version}")
+                    raise SchemaError(
+                        f"No migration path from version {current_version} to {next_version}"
+                    )
 
             current_version = next_version
 
@@ -381,26 +406,25 @@ class SchemaEvolution:
     def to_dict(self) -> dict:
         """Convert to dictionary for persistence"""
         return {
-            'strategy': self.strategy.value,
-            'current_version': self.current_version,
-            'schemas': {
-                str(v): schema.to_dict() for v, schema in self.schemas.items()
-            }
+            "strategy": self.strategy.value,
+            "current_version": self.current_version,
+            "schemas": {str(v): schema.to_dict() for v, schema in self.schemas.items()},
         }
 
     @classmethod
-    def from_dict(cls, data: dict) -> 'SchemaEvolution':
+    def from_dict(cls, data: dict) -> "SchemaEvolution":
         """Create from dictionary"""
-        evolution = cls(EvolutionStrategy(data['strategy']))
-        evolution.current_version = data['current_version']
+        evolution = cls(EvolutionStrategy(data["strategy"]))
+        evolution.current_version = data["current_version"]
         evolution.schemas = {
             int(v): Schema.from_dict(schema_data)
-            for v, schema_data in data['schemas'].items()
+            for v, schema_data in data["schemas"].items()
         }
         return evolution
 
 
 # Integration functions
+
 
 def add_schema_evolution_to_collection(collection_class):
     """Add schema evolution support to Collection class"""
@@ -410,8 +434,8 @@ def add_schema_evolution_to_collection(collection_class):
         metadata_path = utils.make_path(self.datastore, self.collection, item)
         metadata = utils.read_metadata(metadata_path)
 
-        if '_schema_evolution' in metadata:
-            return SchemaEvolution.from_dict(metadata['_schema_evolution'])
+        if "_schema_evolution" in metadata:
+            return SchemaEvolution.from_dict(metadata["_schema_evolution"])
 
         return None
 
@@ -419,11 +443,12 @@ def add_schema_evolution_to_collection(collection_class):
         """Set schema evolution for an item"""
         metadata_path = utils.make_path(self.datastore, self.collection, item)
         metadata = utils.read_metadata(metadata_path)
-        metadata['_schema_evolution'] = evolution.to_dict()
+        metadata["_schema_evolution"] = evolution.to_dict()
         utils.write_metadata(metadata_path, metadata)
 
-    def enable_schema_evolution(self, item: str,
-                               strategy: EvolutionStrategy = EvolutionStrategy.COMPATIBLE):
+    def enable_schema_evolution(
+        self, item: str, strategy: EvolutionStrategy = EvolutionStrategy.COMPATIBLE
+    ):
         """Enable schema evolution for an item"""
         evolution = SchemaEvolution(strategy)
 
@@ -432,7 +457,9 @@ def add_schema_evolution_to_collection(collection_class):
         evolution.register_schema(current_df)
 
         self.set_item_evolution(item, evolution)
-        logger.info(f"Enabled schema evolution for item '{item}' with strategy '{strategy.value}'")
+        logger.info(
+            f"Enabled schema evolution for item '{item}' with strategy '{strategy.value}'"
+        )
 
     # Add methods to collection class
     collection_class.get_item_evolution = get_item_evolution
@@ -444,8 +471,10 @@ def add_schema_evolution_to_collection(collection_class):
 
 # Example migration functions
 
-def add_calculated_column(df: pd.DataFrame, column_name: str,
-                         calculation_func: Callable) -> pd.DataFrame:
+
+def add_calculated_column(
+    df: pd.DataFrame, column_name: str, calculation_func: Callable
+) -> pd.DataFrame:
     """Migration function to add a calculated column"""
     df[column_name] = calculation_func(df)
     return df

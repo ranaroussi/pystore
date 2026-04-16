@@ -225,9 +225,9 @@ class MultiIndexHandler:
     ) -> pd.DataFrame:
         """Handle duplicates in MultiIndex DataFrames"""
         if strategy == "keep_last":
-            return cast(pd.DataFrame, df[~df.index.duplicated(keep="last")])
+            return df[~df.index.duplicated(keep="last")]
         elif strategy == "keep_first":
-            return cast(pd.DataFrame, df[~df.index.duplicated(keep="first")])
+            return df[~df.index.duplicated(keep="first")]
         elif strategy == "keep_all":
             return df
         else:
@@ -458,16 +458,12 @@ class TimezoneHandler:
                 if df1.index.tz is not None:
                     df1.index = cast(pd.DatetimeIndex, df1.index).tz_convert(target_tz)
                 else:
-                    df1.index = cast(pd.DatetimeIndex, df1.index).tz_localize(
-                        target_tz
-                    )
+                    df1.index = cast(pd.DatetimeIndex, df1.index).tz_localize(target_tz)
 
                 if df2.index.tz is not None:
                     df2.index = cast(pd.DatetimeIndex, df2.index).tz_convert(target_tz)
                 else:
-                    df2.index = cast(pd.DatetimeIndex, df2.index).tz_localize(
-                        target_tz
-                    )
+                    df2.index = cast(pd.DatetimeIndex, df2.index).tz_localize(target_tz)
 
         # Align column timezones
         for col in df1.columns:

@@ -159,9 +159,7 @@ class TestAppendValidateSchemaTransformed:
         """
         df1 = pd.DataFrame(
             {
-                "interval_col": pd.array(
-                    pd.interval_range(start=0, end=3), dtype="interval[int64, right]"
-                ),
+                "interval_col": pd.interval_range(start=0, end=3),
                 "value": [10.0, 20.0, 30.0],
             },
             index=pd.date_range("2024-01-01", periods=3, freq="D"),
@@ -170,9 +168,7 @@ class TestAppendValidateSchemaTransformed:
 
         df2 = pd.DataFrame(
             {
-                "interval_col": pd.array(
-                    pd.interval_range(start=3, end=5), dtype="interval[int64, right]"
-                ),
+                "interval_col": pd.interval_range(start=3, end=5),
                 "value": [40.0, 50.0],
             },
             index=pd.date_range("2024-01-04", periods=2, freq="D"),

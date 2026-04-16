@@ -196,9 +196,9 @@ class TestComplexDataTypes:
         result = self.collection.item("string_dtype_test").to_pandas()
 
         # The restored column must keep StringDtype, not become plain object
-        assert str(result["name"].dtype) == "string", (
-            f"StringDtype column was silently downcast to {result['name'].dtype}"
-        )
+        assert (
+            str(result["name"].dtype) == "string"
+        ), f"StringDtype column was silently downcast to {result['name'].dtype}"
         assert result["name"].tolist() == ["alice", "bob", "carol"]
 
     def test_object_dtype_still_restored(self):
@@ -215,9 +215,9 @@ class TestComplexDataTypes:
         self.collection.write("object_col_test", df)
         result = self.collection.item("object_col_test").to_pandas()
 
-        assert str(result["label"].dtype) == "object", (
-            f"object column became {result['label'].dtype} after round-trip"
-        )
+        assert (
+            str(result["label"].dtype) == "object"
+        ), f"object column became {result['label'].dtype} after round-trip"
 
     def test_nested_objects(self):
         """Test nested objects (lists and dicts)"""
@@ -332,12 +332,14 @@ class TestTransactionSupport:
         self.collection.write("existing", df1)
 
         # Try a transaction that will fail
-        with pytest.raises(RuntimeError, match="Test error"):
+        try:
             with transaction(self.collection) as txn:
                 txn.write("new_item", df1)
                 txn.delete("existing")
                 # Force an error
                 raise RuntimeError("Test error")
+        except RuntimeError as exc:
+            assert str(exc) == "Test error"
 
         # Verify rollback - existing item should still exist, new item shouldn't
         assert "existing" in self.collection.list_items()

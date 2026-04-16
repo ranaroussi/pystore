@@ -69,7 +69,7 @@ def datetime_to_int64(df):
 
     if isinstance(df.index, pd.DatetimeIndex):
         # Pandas DataFrame with DatetimeIndex
-        if df.index.nanosecond.any():
+        if df.index.nanosecond.to_numpy().any():
             df.index = df.index.astype(np.int64)
     elif isinstance(df.index, dd.Index):
         # Dask DataFrame — check the underlying dtype
