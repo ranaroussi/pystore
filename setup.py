@@ -20,7 +20,8 @@
 
 import codecs
 from os import path
-from setuptools import setup, find_packages
+
+from setuptools import find_packages, setup
 
 here = path.abspath(path.dirname(__file__))
 
@@ -69,5 +70,6 @@ setup(
         'python-snappy>=0.6.1',
         'multitasking>=0.0.11',
         'partd>=1.4.0',
+        'psutil>=5.9.0',
     ],
 )

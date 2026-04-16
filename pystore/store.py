@@ -29,17 +29,16 @@ from .logger import get_logger
 logger = get_logger(__name__)
 
 
-class store(object):
+class store:
     def __repr__(self):
-        return "PyStore.datastore <%s>" % self.datastore
+        return f"PyStore.datastore <{self.datastore}>"
 
     def __init__(self, datastore):
-
         datastore_path = utils.get_path()
         if not utils.path_exists(datastore_path):
             os.makedirs(datastore_path)
 
-        self.datastore = utils.make_path(datastore_path, datastore)
+        self.datastore = str(utils.make_path(datastore_path, datastore))
         if not utils.path_exists(self.datastore):
             os.makedirs(self.datastore)
             utils.write_metadata(self.datastore, {"engine": "pyarrow"})
@@ -54,7 +53,8 @@ class store(object):
                 self.delete_collection(collection)
             else:
                 raise CollectionExistsError(
-                    f"Collection '{collection}' already exists! To overwrite, use overwrite=True")
+                    f"Collection '{collection}' already exists! To overwrite, use overwrite=True"
+                )
 
         os.makedirs(collection_path)
         os.makedirs(utils.make_path(collection_path, "_snapshots"))
@@ -70,7 +70,7 @@ class store(object):
         collection_path = utils.make_path(self.datastore, collection)
         if not utils.path_exists(collection_path):
             raise CollectionNotFoundError(f"Collection '{collection}' does not exist")
-        
+
         try:
             shutil.rmtree(collection_path)
             # update collections
@@ -79,7 +79,9 @@ class store(object):
             return True
         except Exception as e:
             logger.error(f"Failed to delete collection '{collection}': {e}")
-            raise RuntimeError(f"Failed to delete collection '{collection}': {str(e)}") from e
+            raise RuntimeError(
+                f"Failed to delete collection '{collection}': {str(e)}"
+            ) from e
 
     def list_collections(self):
         # lists collections (subdirs)
