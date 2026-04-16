@@ -4,7 +4,9 @@ Tests for PyStore performance optimizations
 
 import numpy as np
 import pandas as pd
+import pytest
 
+import pystore
 from pystore.memory import (
     MemoryMonitor,
     apply_dask_memory_config,
@@ -102,6 +104,22 @@ class TestPerformanceOptimizations:
             assert f"batch_item_{i}" in test_collection.list_items()
             item_meta = test_collection.get_item_metadata(f"batch_item_{i}")
             assert item_meta["batch_index"] == i
+
+    def test_batch_write_parallel_surfaces_item_failures(
+        self, test_collection, sample_data
+    ):
+        """Parallel batch writes should raise if any item fails."""
+        test_collection.write("existing_item", sample_data)
+
+        items_data = {
+            "existing_item": sample_data,
+            "new_item": sample_data.iloc[:10],
+        }
+
+        with pytest.raises(pystore.StorageError, match="existing_item"):
+            test_collection.write_batch(items_data, parallel=True)
+
+        assert "new_item" in test_collection.list_items()
 
     def test_batch_read(self, test_collection, sample_data):
         """Test batch read functionality"""
