@@ -52,7 +52,7 @@ class TestPackagingTooling:
             text=True,
         )
 
-        assert result.returncode == 0, result.stdout + "\n" + result.stderr
+        assert result.returncode == 0, f"{result.stdout}\n{result.stderr}"
 
         wheel_path = next(dist_dir.glob("pystore-*.whl"))
         sdist_path = next(dist_dir.glob("pystore-*.tar.gz"))
