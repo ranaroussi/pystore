@@ -1,13 +1,14 @@
 [build-system]
-requires = ["setuptools>=68.0", "wheel", "setuptools-scm>=8.0"]
+requires = ["setuptools>=77.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "pystore"
-version = "1.0.1"
+dynamic = ["version"]
 description = "Fast data store for Pandas timeseries data"
 readme = "README.md"
-license = {text = "Apache-2.0"}
+license = "Apache-2.0"
+license-files = ["LICENSE.txt"]
 authors = [
     {name = "Ran Aroussi", email = "ran@aroussi.com"},
 ]
@@ -16,7 +17,6 @@ maintainers = [
 ]
 keywords = ["dask", "datastore", "flatfile", "pystore", "timeseries", "pandas"]
 classifiers = [
-    "License :: OSI Approved :: Apache Software License",
     "Development Status :: 5 - Production/Stable",
     "Operating System :: OS Independent",
     "Intended Audience :: Developers",
@@ -80,6 +80,9 @@ include-package-data = true
 
 [tool.setuptools.package-data]
 pystore = ["py.typed"]
+
+[tool.setuptools.dynamic]
+version = {attr = "pystore.__version__"}
 
 [tool.black]
 line-length = 88
