@@ -2,12 +2,14 @@
 PyStore test configuration and fixtures
 """
 
-import pytest
-import tempfile
 import shutil
+import tempfile
 from pathlib import Path
-import pandas as pd
+
 import numpy as np
+import pandas as pd
+import pytest
+
 import pystore
 
 

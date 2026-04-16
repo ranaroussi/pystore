@@ -267,8 +267,15 @@ def rebalance_partitions(
         shutil.move(tmp_data_path, str(final_path))
         shutil.rmtree(str(backup_path))
     except Exception:
-        # Restore original from backup if the swap failed
-        if utils.path_exists(backup_path) and not utils.path_exists(final_path):
+        # Restore original from backup if the swap failed.
+        # A partial shutil.move() may have created an incomplete final_path,
+        # so always remove it before restoring the backup.
+        if utils.path_exists(backup_path):
+            try:
+                if utils.path_exists(final_path):
+                    shutil.rmtree(str(final_path))
+            except OSError:
+                logger.error(f"Failed to remove incomplete final_path: {final_path}")
             shutil.move(str(backup_path), str(final_path))
         raise
     finally:

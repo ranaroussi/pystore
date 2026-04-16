@@ -324,13 +324,12 @@ class SchemaEvolution:
         logger.info(f"Registered migration from version {from_version} to {to_version}")
 
     def migrate_to_version(self, to_version: int) -> pd.DataFrame:
-        """Migrate the stored item to a specific version
+        """Migrate the stored item to a specific version.
 
-        Note: This method needs access to the actual data, which SchemaEvolution
-        doesn't have directly. In a real implementation, this would be called
-        by the collection with the current data.
+        The full migration result is computed in memory first, and only written
+        back once the entire migration chain succeeds.  This avoids persisting
+        partially-migrated data if an intermediate step errors.
         """
-        # Store reference to collection and item for migration
         if self._collection is None or self._item is None:
             raise RuntimeError(
                 "migrate_to_version requires collection context. "
@@ -340,10 +339,10 @@ class SchemaEvolution:
         # Get current data from collection
         current_data = self._collection.item(self._item).to_pandas()
 
-        # Apply migration
+        # Compute the full migration result *before* writing anything.
         migrated_data = self.migrate(current_data, 1, to_version)
 
-        # Write back to collection
+        # Only persist once migration is fully computed.
         self._collection.write(self._item, migrated_data, overwrite=True)
 
         return migrated_data

@@ -67,10 +67,14 @@ def datetime_to_int64(df):
     allows for cross language/platform portability
     """
 
-    if isinstance(df.index, dd.Index) and (
-        isinstance(df.index, pd.DatetimeIndex) and any(df.index.nanosecond) > 0
-    ):
-        df.index = df.index.astype(np.int64)  # / 1e9
+    if isinstance(df.index, pd.DatetimeIndex):
+        # Pandas DataFrame with DatetimeIndex
+        if df.index.nanosecond.any():
+            df.index = df.index.astype(np.int64)
+    elif isinstance(df.index, dd.Index):
+        # Dask DataFrame — check the underlying dtype
+        if pd.api.types.is_datetime64_any_dtype(df.index.dtype):
+            df.index = df.index.astype(np.int64)
 
     return df
 

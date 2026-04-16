@@ -155,12 +155,17 @@ class AsyncCollection:
         dataframes: list[pd.DataFrame],
         **kwargs: Any,
     ) -> None:
-        """Append multiple DataFrames to same item in parallel"""
-        tasks = [self.append(item, df, **kwargs) for df in dataframes]
+        """Append multiple DataFrames to the same item sequentially.
 
-        logger.debug(f"Starting parallel append of {len(dataframes)} DataFrames to '{item}'")
-        await asyncio.gather(*tasks)
-        logger.debug(f"Completed parallel append to '{item}'")
+        The underlying ``collection.append()`` is not thread-safe for the same
+        item — it reads existing data, combines, and swaps.  Concurrent appends
+        would race on that read-compute-swap sequence, causing data loss or
+        corruption.  Therefore appends to the **same** item are serialized.
+        """
+        logger.debug(f"Starting sequential append of {len(dataframes)} DataFrames to '{item}'")
+        for df in dataframes:
+            await self.append(item, df, **kwargs)
+        logger.debug(f"Completed sequential append to '{item}'")
 
     def close(self):
         """Close the executor"""
@@ -202,10 +207,11 @@ class AsyncContextManager:
         self.executor = concurrent.futures.ThreadPoolExecutor(max_workers=4)
 
     async def __aenter__(self):
-        # Check class name to distinguish between Store and Collection
-        if self.sync_obj.__class__.__name__ == "store":  # It's a store
+        from .store import store as Store
+
+        if isinstance(self.sync_obj, Store):
             self.async_obj = AsyncStore(self.sync_obj, self.executor)
-        else:  # It's a collection
+        else:
             self.async_obj = AsyncCollection(self.sync_obj, self.executor)
         return self.async_obj
 

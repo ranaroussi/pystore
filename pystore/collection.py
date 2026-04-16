@@ -408,7 +408,8 @@ class Collection:
         """Filter out duplicate indices from new data."""
         try:
             if epochdate or (
-                "datetime" in str(data.index.dtype) and any(data.index.nanosecond) > 0
+                "datetime" in str(data.index.dtype)
+                and data.index.nanosecond.any()
             ):
                 data = utils.datetime_to_int64(data)
             old_index = dd.read_parquet(
@@ -479,30 +480,18 @@ class Collection:
         tmp_item = "__" + item
         write = self.write_threaded if threaded else self.write
 
-        # Check if we need to preserve MultiIndex metadata
-        if hasattr(data, "index") and isinstance(data.index, pd.MultiIndex):
-            metadata = current.metadata.copy()
-            write(
-                tmp_item,
-                combined,
-                npartitions=npartitions,
-                metadata=metadata,
-                overwrite=False,
-                epochdate=epochdate,
-                reload_items=reload_items,
-                **kwargs,
-            )
-        else:
-            write(
-                tmp_item,
-                combined,
-                npartitions=npartitions,
-                metadata=current.metadata,
-                overwrite=False,
-                epochdate=epochdate,
-                reload_items=reload_items,
-                **kwargs,
-            )
+        # Always copy metadata to avoid mutating the Item's internal state
+        metadata = current.metadata.copy()
+        write(
+            tmp_item,
+            combined,
+            npartitions=npartitions,
+            metadata=metadata,
+            overwrite=False,
+            epochdate=epochdate,
+            reload_items=reload_items,
+            **kwargs,
+        )
         return tmp_item
 
     def _replace_item_with_temporary(self, item, tmp_item):
@@ -526,6 +515,13 @@ class Collection:
         **kwargs,
     ):
         """Append data to an existing item.
+
+        .. note::
+            This method materializes the **entire** existing item into memory
+            via ``to_pandas()`` in order to combine it with the new data.  For
+            very large items this can be extremely memory-intensive.  Consider
+            using :meth:`append_stream` for a chunked, memory-efficient
+            alternative when dealing with large datasets.
 
         Parameters
         ----------
@@ -806,13 +802,18 @@ class Collection:
                 shutil.rmtree(backup_path)
 
         except Exception:
-            # Restore from backup if it exists
+            # Restore from backup if it exists.
+            # A partial shutil.move() may have created an incomplete final_path,
+            # so always remove it before restoring the backup.
             backup_path = self._item_path(f"_backup_{item}")
             if utils.path_exists(backup_path):
                 logger.warning("Restoring from backup due to write failure")
                 final_path = self._item_path(item)
-                if utils.path_exists(final_path):
-                    shutil.rmtree(final_path)
+                try:
+                    if utils.path_exists(final_path):
+                        shutil.rmtree(final_path)
+                except OSError:
+                    logger.error(f"Failed to remove incomplete final_path: {final_path}")
                 shutil.move(str(backup_path), str(final_path))
             raise
         finally:
@@ -985,11 +986,11 @@ class Collection:
                 logger.error(f"Failed to write item '{item_name}': {e}")
                 return False
 
-        # Process all items
-        success_count = 0
+        # Process all items, tracking failures by name
+        failed_items: list[str] = []
         for item_name, data in items_data.items():
-            if write_single(item_name, data):
-                success_count += 1
+            if not write_single(item_name, data):
+                failed_items.append(item_name)
 
         # Wait for parallel tasks if needed
         if parallel:
@@ -998,13 +999,15 @@ class Collection:
         # Reload items once at the end
         self._list_items_threaded()
 
+        success_count = len(items_data) - len(failed_items)
         logger.info(
             f"Batch write completed: {success_count}/{len(items_data)} items written successfully"
         )
 
-        if success_count < len(items_data):
+        if failed_items:
             raise StorageError(
-                f"Batch write partially failed: only {success_count}/{len(items_data)} items written"
+                f"Batch write partially failed: {len(failed_items)}/{len(items_data)} items failed. "
+                f"Failed items: {failed_items}"
             )
 
     def read_batch(

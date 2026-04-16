@@ -100,7 +100,7 @@ extend-exclude = '''
 [tool.ruff]
 line-length = 88
 target-version = "py39"
-extend-exclude = ["tests", "examples"]
+extend-exclude = ["examples"]
 
 [tool.ruff.lint]
 select = [
@@ -136,7 +136,6 @@ warn_unused_ignores = true
 warn_no_return = true
 warn_unreachable = true
 strict_equality = true
-follow_imports = "skip"
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

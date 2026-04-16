@@ -295,13 +295,27 @@ class MemoryMonitor:
         gc.collect()
 
 
-# Configure Dask for better memory management
-dask.config.set(
-    {
-        "dataframe.query-planning": True,
-        "dataframe.shuffle.method": "disk",  # Use disk for shuffles to save memory
-        "distributed.worker.memory.target": 0.8,  # Spill to disk at 80% memory
-        "distributed.worker.memory.spill": 0.9,  # Spill to disk at 90% memory
-        "distributed.worker.memory.pause": 0.95,  # Pause at 95% memory
-    }
-)
+_dask_memory_config_applied = False
+
+
+def apply_dask_memory_config() -> None:
+    """Apply Dask memory management configuration lazily.
+
+    This avoids mutating global Dask configuration at import time, which can
+    break downstream code (e.g., setting ``distributed.worker.memory.*`` when
+    no distributed cluster is active).  Call this explicitly before operations
+    that benefit from the tuned settings.
+    """
+    global _dask_memory_config_applied
+    if _dask_memory_config_applied:
+        return
+    dask.config.set(
+        {
+            "dataframe.query-planning": True,
+            "dataframe.shuffle.method": "disk",  # Use disk for shuffles to save memory
+            "distributed.worker.memory.target": 0.8,  # Spill to disk at 80% memory
+            "distributed.worker.memory.spill": 0.9,  # Spill to disk at 90% memory
+            "distributed.worker.memory.pause": 0.95,  # Pause at 95% memory
+        }
+    )
+    _dask_memory_config_applied = True

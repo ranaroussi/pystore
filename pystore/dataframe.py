@@ -525,10 +525,12 @@ def validate_dataframe_for_storage(df: pd.DataFrame) -> None:
             "Consider using a different data structure."
         )
 
-    # Check for mixed types in columns (can cause issues)
+    # Check for mixed types in columns (can cause issues).
+    # Use a sample to avoid O(n) memory from materializing the entire column.
     for col in df.columns:
         if df[col].dtype == "object":
-            types = {type(value) for value in df[col].dropna().tolist()}
+            sample = df[col].dropna().head(1000)
+            types = {type(v) for v in sample}
             if len(types) > 1:
                 logger.warning(
                     f"Column '{col}' has mixed types: {types}. "

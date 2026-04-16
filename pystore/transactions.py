@@ -290,18 +290,59 @@ def batch_transaction(collection):
 
 
 class CollectionLock:
-    """Distributed lock for collection-level operations"""
+    """Distributed lock for collection-level operations.
 
-    def __init__(self, collection, lock_name: str = "collection"):
+    Uses filesystem directory creation (``os.makedirs(exist_ok=False)``) as an
+    atomic lock primitive.  Improvements over the naive approach:
+
+    * **Stale lock detection** — if the lock directory exists but is older than
+      ``stale_timeout`` seconds, it is assumed to be from a crashed process and
+      is forcibly removed before retrying.
+    * **Atomic owner identification** — the lock_id is written to a temporary
+      file and renamed into the lock directory so that ownership is never in an
+      unknown state.
+    * **Explicit release validation** — ``release()`` raises if the lock was
+      externally removed instead of silently succeeding.
+    """
+
+    def __init__(
+        self,
+        collection,
+        lock_name: str = "collection",
+        stale_timeout: float = 300.0,
+    ):
         self.collection = collection
         self.lock_name = lock_name
         self.lock_path = utils.make_path(
             collection.datastore,
             collection.collection,
-            f".lock_{lock_name}"
+            f".lock_{lock_name}",
         )
         self.lock_id = str(uuid.uuid4())
+        self.stale_timeout = stale_timeout
         self._acquired = False
+
+    def _is_stale(self) -> bool:
+        """Check whether an existing lock directory is stale."""
+        import time as _time
+
+        try:
+            lock_dir = str(self.lock_path)
+            mtime = os.path.getmtime(lock_dir)
+            return (_time.time() - mtime) > self.stale_timeout
+        except OSError:
+            return False
+
+    def _break_stale_lock(self) -> None:
+        """Remove a stale lock directory."""
+        try:
+            shutil.rmtree(self.lock_path)
+            logger.warning(
+                f"Removed stale lock '{self.lock_name}' "
+                f"(older than {self.stale_timeout}s)"
+            )
+        except OSError:
+            pass  # Another process may have cleaned it up already
 
     def acquire(self, timeout: float = 30.0) -> bool:
         """Acquire the lock with timeout"""
@@ -310,40 +351,68 @@ class CollectionLock:
 
         while time.time() - start_time < timeout:
             try:
-                # Try to create lock file atomically
+                # Try to create lock directory atomically
                 os.makedirs(self.lock_path, exist_ok=False)
 
-                # Write our lock ID
+                # Write lock_id atomically via tmp-file + rename so the owner
+                # is never in an unknown state.
                 lock_file = os.path.join(self.lock_path, "lock_id")
-                with open(lock_file, 'w') as f:
-                    f.write(self.lock_id)
+                tmp_lock_file = lock_file + f".{os.getpid()}.tmp"
+                try:
+                    with open(tmp_lock_file, "w") as f:
+                        f.write(self.lock_id)
+                    os.replace(tmp_lock_file, lock_file)
+                except Exception:
+                    # If writing the lock_id fails, release the directory
+                    try:
+                        shutil.rmtree(self.lock_path)
+                    except OSError:
+                        pass
+                    raise
 
                 self._acquired = True
                 logger.debug(f"Acquired lock '{self.lock_name}'")
                 return True
 
             except FileExistsError:
-                # Lock is held by someone else
+                # Lock is held — check for staleness
+                if self._is_stale():
+                    self._break_stale_lock()
+                    continue  # retry immediately
                 time.sleep(0.1)
 
         logger.warning(f"Failed to acquire lock '{self.lock_name}' after {timeout}s")
         return False
 
-    def release(self):
-        """Release the lock"""
-        if self._acquired:
-            try:
-                # Verify we own the lock
-                lock_file = os.path.join(self.lock_path, "lock_id")
-                if os.path.exists(lock_file):
-                    with open(lock_file) as f:
-                        if f.read().strip() == self.lock_id:
-                            shutil.rmtree(self.lock_path)
-                            logger.debug(f"Released lock '{self.lock_name}'")
-            except Exception as e:
-                logger.error(f"Error releasing lock: {e}")
-            finally:
-                self._acquired = False
+    def release(self) -> None:
+        """Release the lock.
+
+        Raises ``TransactionError`` if the lock directory was removed externally
+        (i.e., we no longer own it).
+        """
+        if not self._acquired:
+            return
+
+        try:
+            lock_file = os.path.join(self.lock_path, "lock_id")
+            if not os.path.exists(lock_file):
+                raise TransactionError(
+                    f"Lock '{self.lock_name}' was removed externally"
+                )
+            with open(lock_file) as f:
+                owner = f.read().strip()
+            if owner != self.lock_id:
+                raise TransactionError(
+                    f"Lock '{self.lock_name}' is owned by another process"
+                )
+            shutil.rmtree(self.lock_path)
+            logger.debug(f"Released lock '{self.lock_name}'")
+        except TransactionError:
+            raise
+        except Exception as e:
+            logger.error(f"Error releasing lock: {e}")
+        finally:
+            self._acquired = False
 
     def __enter__(self):
         if not self.acquire():
