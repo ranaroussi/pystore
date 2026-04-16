@@ -44,12 +44,7 @@ class Item:
 
         if snapshot is not None:
             self.snapshot = utils.validate_identifier(snapshot, "Snapshot")
-            snap_path = utils.make_path(
-                datastore,
-                self.collection,
-                "_snapshots",
-                self.snapshot,
-            )
+            snap_path = utils.make_path(datastore, self.collection, "_snapshots", self.snapshot)
             if not utils.path_exists(snap_path):
                 raise SnapshotNotFoundError(
                     f"Snapshot '{self.snapshot}' doesn't exist"
@@ -64,7 +59,7 @@ class Item:
         else:
             self.snapshot = None
             self._path = utils.make_path(datastore, self.collection, self.item)
-            if not self._path.exists():
+            if not utils.path_exists(self._path):
                 raise ItemNotFoundError(
                     f"Item '{self.item}' doesn't exist. "
                     f"Create it using collection.write('{self.item}', data, ...)"
