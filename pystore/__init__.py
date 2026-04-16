@@ -20,7 +20,6 @@
 
 # PyArrow is now the only supported engine
 
-# Import new modules for Phase 4 features
 from .async_operations import AsyncCollection, AsyncStore, async_pystore
 from .exceptions import (
     CollectionExistsError,
