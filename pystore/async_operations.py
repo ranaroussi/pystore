@@ -125,10 +125,7 @@ class AsyncCollection:
         **kwargs: Any,
     ) -> None:
         """Async batch write multiple items concurrently"""
-        tasks = []
-        for item_name, data in items_data.items():
-            task = self.write(item_name, data, **kwargs)
-            tasks.append(task)
+        tasks = [self.write(name, data, **kwargs) for name, data in items_data.items()]
 
         logger.debug(f"Starting async batch write for {len(tasks)} items")
         await asyncio.gather(*tasks)
@@ -140,10 +137,7 @@ class AsyncCollection:
         **kwargs: Any,
     ) -> dict[str, Optional[pd.DataFrame]]:
         """Async batch read multiple items concurrently"""
-        tasks = []
-        for item in items:
-            task = self.read(item, **kwargs)
-            tasks.append(task)
+        tasks = [self.read(item, **kwargs) for item in items]
 
         logger.debug(f"Starting async batch read for {len(items)} items")
         results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -162,10 +156,7 @@ class AsyncCollection:
         **kwargs: Any,
     ) -> None:
         """Append multiple DataFrames to same item in parallel"""
-        tasks = []
-        for df in dataframes:
-            task = self.append(item, df, **kwargs)
-            tasks.append(task)
+        tasks = [self.append(item, df, **kwargs) for df in dataframes]
 
         logger.debug(f"Starting parallel append of {len(dataframes)} DataFrames to '{item}'")
         await asyncio.gather(*tasks)
