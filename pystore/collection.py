@@ -128,8 +128,7 @@ class Collection:
                 return self._metadata_cache[item].copy()
 
         # Read metadata from disk
-        metadata_path = utils.make_path(self.datastore, self.collection, item)
-        metadata = utils.read_metadata(metadata_path)
+        metadata = utils.read_metadata(utils.make_path(self.datastore, self.collection, item))
 
         # Update cache
         if use_cache:
@@ -216,27 +215,8 @@ class Collection:
         logger.info(f"Successfully migrated item '{item}' to version {to_version}")
 
     @multitasking.task
-    def write_threaded(
-        self,
-        item,
-        data,
-        metadata=None,
-        npartitions=None,
-        overwrite=False,
-        epochdate=False,
-        reload_items=False,
-        **kwargs,
-    ):
-        return self.write(
-            item,
-            data,
-            metadata,
-            npartitions,
-            overwrite,
-            epochdate,
-            reload_items,
-            **kwargs,
-        )
+    def write_threaded(self, *args, **kwargs):
+        return self.write(*args, **kwargs)
 
     def _validate_write_item(self, item, overwrite):
         """Validate item doesn't exist unless overwrite is True."""
