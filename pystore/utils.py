@@ -118,16 +118,54 @@ def write_metadata(path, metadata: Optional[dict[str, Any]] = None) -> None:
         json.dump(metadata, f, ensure_ascii=False)
 
 
+def validate_identifier(name, kind="Identifier"):
+    """Validate a user-facing name as a single safe path component."""
+    if name is None:
+        raise ValueError(f"{kind} name must not be empty")
+
+    value = os.fspath(name) if isinstance(name, os.PathLike) else str(name)
+    if not value.strip():
+        raise ValueError(f"{kind} name must not be empty")
+    if value in {".", ".."}:
+        raise ValueError(f"{kind} name '{value}' is invalid")
+    if "/" in value or "\\" in value:
+        raise ValueError(f"{kind} name '{value}' must be a single path component")
+    if Path(value).is_absolute():
+        raise ValueError(f"{kind} name '{value}' must be relative")
+
+    return value
+
+
+def sanitize_snapshot_name(snapshot):
+    """Sanitize a snapshot name and ensure it remains a valid component."""
+    snapshot_str = (
+        os.fspath(snapshot) if isinstance(snapshot, os.PathLike) else str(snapshot)
+    )
+    snapshot_name = "".join(
+        char for char in snapshot_str if char.isalnum() or char in [".", "_"]
+    )
+    return validate_identifier(snapshot_name, "Snapshot")
+
+
 def make_path(*args):
     """use this to construct paths for future storage support"""
-    # return Path(os.path.join(*args))
-    return Path(*args)
+    if not args:
+        return Path()
+
+    path = Path(args[0])
+    for component in args[1:]:
+        component_path = Path(component)
+        if component_path.is_absolute():
+            raise ValueError("Path components must be relative")
+        path = path / component_path
+
+    return path
 
 
 def get_path(*args):
     """use this to construct paths for future storage support"""
-    # return Path(os.path.join(config.DEFAULT_PATH, *args))
-    return Path(config.DEFAULT_PATH, *args)
+    components = [validate_identifier(arg, "Path component") for arg in args]
+    return make_path(config.DEFAULT_PATH, *components)
 
 
 def set_path(path=None):
@@ -173,14 +211,15 @@ def list_stores():
 
 
 def delete_store(store):
-    store_path = get_path(store)
+    store_name = validate_identifier(store, "Store")
+    store_path = get_path(store_name)
     if not path_exists(store_path):
-        raise ValueError(f"Store '{store}' does not exist")
+        raise ValueError(f"Store '{store_name}' does not exist")
     try:
         shutil.rmtree(store_path)
         return True
     except Exception as e:
-        raise RuntimeError(f"Failed to delete store '{store}': {str(e)}") from e
+        raise RuntimeError(f"Failed to delete store '{store_name}': {str(e)}") from e
 
 
 def delete_stores():

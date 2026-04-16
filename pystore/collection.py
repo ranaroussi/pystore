@@ -55,7 +55,7 @@ class Collection:
 
     def __init__(self, collection, datastore):
         self.datastore = datastore
-        self.collection = collection
+        self.collection = utils.validate_identifier(collection, "Collection")
         self.items = self.list_items()
         self.snapshots = self.list_snapshots()
         self._metadata_cache: dict[str, dict[str, Any]] = {}  # Cache for item metadata
@@ -78,7 +78,8 @@ class Collection:
         pathlib.Path or str
             The filesystem path to the item
         """
-        p = utils.make_path(self.datastore, self.collection, item)
+        item_name = utils.validate_identifier(item, "Item")
+        p = utils.make_path(self.datastore, self.collection, item_name)
         if as_string:
             return str(p)
         return p
@@ -127,7 +128,7 @@ class Collection:
                 return self._metadata_cache[item].copy()
 
         # Read metadata from disk
-        metadata = utils.read_metadata(utils.make_path(self.datastore, self.collection, item))
+        metadata = utils.read_metadata(self._item_path(item))
 
         # Update cache
         if use_cache:
@@ -308,7 +309,7 @@ class Collection:
         )
 
         utils.write_metadata(
-            utils.make_path(self.datastore, self.collection, item), metadata
+            self._item_path(item), metadata
         )
 
         # update items
@@ -629,8 +630,8 @@ class Collection:
         self._replace_item_with_temporary(item, tmp_item)
 
     def create_snapshot(self, snapshot=None):
-        if snapshot:
-            snapshot = "".join(e for e in snapshot if e.isalnum() or e in [".", "_"])
+        if snapshot is not None:
+            snapshot = utils.sanitize_snapshot_name(snapshot)
         else:
             snapshot = str(int(time.time() * 1000000))
 
@@ -649,12 +650,13 @@ class Collection:
         return set(snapshots)
 
     def delete_snapshot(self, snapshot):
-        if snapshot not in self.snapshots:
+        snapshot_name = utils.validate_identifier(snapshot, "Snapshot")
+        if snapshot_name not in self.snapshots:
             # raise ValueError("Snapshot `%s` doesn't exist" % snapshot)
             return True
 
         shutil.rmtree(
-            utils.make_path(self.datastore, self.collection, "_snapshots", snapshot)
+            utils.make_path(self.datastore, self.collection, "_snapshots", snapshot_name)
         )
         self.snapshots = self.list_snapshots()
         return True

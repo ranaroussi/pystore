@@ -10,6 +10,17 @@ import pytest
 
 import pystore
 
+INVALID_STORE_NAMES = [
+    "",
+    "   ",
+    ".",
+    "..",
+    "../escape",
+    "nested/name",
+    r"nested\name",
+    "/tmp/abs",
+]
+
 
 class TestStore:
     """Test store creation and management"""
@@ -94,3 +105,21 @@ class TestStore:
         """Test handling of invalid paths"""
         with pytest.raises(ValueError, match="only works with local file system"):
             pystore.set_path("s3://bucket/path")
+
+    @pytest.mark.parametrize("store_name", INVALID_STORE_NAMES)
+    def test_rejects_invalid_store_names(self, temp_store_path, store_name):
+        """Store APIs reject empty, nested, and escaping names."""
+        pystore.set_path(temp_store_path)
+
+        with pytest.raises(ValueError):
+            pystore.store(store_name)
+
+        with pytest.raises(ValueError):
+            pystore.delete_store(store_name)
+
+    def test_store_item_missing_collection_does_not_create_collection(self, test_store):
+        """Read access must not create a missing collection as a side effect."""
+        with pytest.raises(pystore.CollectionNotFoundError):
+            test_store.item("missing_collection", "missing_item")
+
+        assert "missing_collection" not in test_store.list_collections()

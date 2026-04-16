@@ -34,11 +34,12 @@ class store:
         return f"PyStore.datastore <{self.datastore}>"
 
     def __init__(self, datastore):
+        datastore_name = utils.validate_identifier(datastore, "Store")
         datastore_path = utils.get_path()
         if not utils.path_exists(datastore_path):
             os.makedirs(datastore_path)
 
-        self.datastore = str(utils.make_path(datastore_path, datastore))
+        self.datastore = str(utils.make_path(datastore_path, datastore_name))
         if not utils.path_exists(self.datastore):
             os.makedirs(self.datastore)
             utils.write_metadata(self.datastore, {"engine": "pyarrow"})
@@ -46,14 +47,15 @@ class store:
         self.collections = self.list_collections()
 
     def _create_collection(self, collection, overwrite=False):
+        collection_name = utils.validate_identifier(collection, "Collection")
         # create collection (subdir)
-        collection_path = utils.make_path(self.datastore, collection)
+        collection_path = utils.make_path(self.datastore, collection_name)
         if utils.path_exists(collection_path):
             if overwrite:
-                self.delete_collection(collection)
+                self.delete_collection(collection_name)
             else:
                 raise CollectionExistsError(
-                    f"Collection '{collection}' already exists! To overwrite, use overwrite=True"
+                    f"Collection '{collection_name}' already exists! To overwrite, use overwrite=True"
                 )
 
         os.makedirs(collection_path)
@@ -63,24 +65,27 @@ class store:
         self.collections = self.list_collections()
 
         # return the collection
-        return Collection(collection, self.datastore)
+        return Collection(collection_name, self.datastore)
 
     def delete_collection(self, collection):
+        collection_name = utils.validate_identifier(collection, "Collection")
         # delete collection (subdir)
-        collection_path = utils.make_path(self.datastore, collection)
+        collection_path = utils.make_path(self.datastore, collection_name)
         if not utils.path_exists(collection_path):
-            raise CollectionNotFoundError(f"Collection '{collection}' does not exist")
+            raise CollectionNotFoundError(
+                f"Collection '{collection_name}' does not exist"
+            )
 
         try:
             shutil.rmtree(collection_path)
             # update collections
             self.collections = self.list_collections()
-            logger.info(f"Successfully deleted collection '{collection}'")
+            logger.info(f"Successfully deleted collection '{collection_name}'")
             return True
         except Exception as e:
-            logger.error(f"Failed to delete collection '{collection}': {e}")
+            logger.error(f"Failed to delete collection '{collection_name}': {e}")
             raise RuntimeError(
-                f"Failed to delete collection '{collection}': {str(e)}"
+                f"Failed to delete collection '{collection_name}': {str(e)}"
             ) from e
 
     def list_collections(self):
@@ -88,13 +93,21 @@ class store:
         return utils.subdirs(self.datastore)
 
     def collection(self, collection, overwrite=False):
-        if collection in self.collections and not overwrite:
-            return Collection(collection, self.datastore)
+        collection_name = utils.validate_identifier(collection, "Collection")
+        if collection_name in self.collections and not overwrite:
+            return Collection(collection_name, self.datastore)
 
         # create it
-        self._create_collection(collection, overwrite)
-        return Collection(collection, self.datastore)
+        self._create_collection(collection_name, overwrite)
+        return Collection(collection_name, self.datastore)
 
     def item(self, collection, item):
         # bypasses collection
-        return self.collection(collection).item(item)
+        collection_name = utils.validate_identifier(collection, "Collection")
+        item_name = utils.validate_identifier(item, "Item")
+        collection_path = utils.make_path(self.datastore, collection_name)
+        if not utils.path_exists(collection_path):
+            raise CollectionNotFoundError(
+                f"Collection '{collection_name}' does not exist"
+            )
+        return Collection(collection_name, self.datastore).item(item_name)
