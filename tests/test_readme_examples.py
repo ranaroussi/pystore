@@ -6,13 +6,16 @@ Tests for PyStore README Examples
 Verifies all functionality shown in the README works correctly
 """
 
-import pytest
-import pandas as pd
-import numpy as np
-import tempfile
-import shutil
 import os
-from unittest.mock import patch, MagicMock
+import shutil
+import sys
+import tempfile
+from types import ModuleType
+from unittest.mock import MagicMock, patch
+
+import numpy as np
+import pandas as pd
+import pytest
 
 import pystore
 
@@ -31,20 +34,20 @@ class TestReadmeExamples:
     
     def test_basic_workflow_with_yfinance(self):
         """Test the basic workflow example from README with yfinance"""
-        # Mock yfinance since we don't want to make real API calls
-        with patch('yfinance.download') as mock_download:
-            # Create mock data that yfinance would return
-            dates = pd.date_range('2023-01-01', periods=200, freq='D')
-            mock_data = pd.DataFrame({
-                'Open': np.random.randn(200) * 10 + 150,
-                'High': np.random.randn(200) * 10 + 152,
-                'Low': np.random.randn(200) * 10 + 148,
-                'Close': np.random.randn(200) * 10 + 150,
-                'Volume': np.random.randint(1000000, 10000000, 200),
-                'Adj Close': np.random.randn(200) * 10 + 150
-            }, index=dates)
-            mock_download.return_value = mock_data
-            
+        # Mock yfinance without requiring the optional dependency to be installed.
+        dates = pd.date_range('2023-01-01', periods=200, freq='D')
+        mock_data = pd.DataFrame({
+            'Open': np.random.randn(200) * 10 + 150,
+            'High': np.random.randn(200) * 10 + 152,
+            'Low': np.random.randn(200) * 10 + 148,
+            'Close': np.random.randn(200) * 10 + 150,
+            'Volume': np.random.randint(1000000, 10000000, 200),
+            'Adj Close': np.random.randn(200) * 10 + 150
+        }, index=dates)
+        mock_yfinance = ModuleType('yfinance')
+        mock_yfinance.download = MagicMock(return_value=mock_data)
+
+        with patch.dict(sys.modules, {'yfinance': mock_yfinance}):
             # Now run the README example
             import yfinance as yf
             

@@ -23,7 +23,7 @@ Schema evolution support for PyStore
 """
 
 from collections.abc import Callable
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Optional, cast
 
@@ -51,7 +51,7 @@ class SchemaChange:
         self.change_type = change_type
         self.column = column
         self.details = details
-        self.timestamp = datetime.utcnow()
+        self.timestamp = datetime.now(timezone.utc)
 
     def to_dict(self) -> dict:
         return {
@@ -82,7 +82,7 @@ class Schema:
         self.dtypes = dtypes
         self.index_dtype = index_dtype
         self.version = version
-        self.created_at = datetime.utcnow()
+        self.created_at = datetime.now(timezone.utc)
         self.changes: list[SchemaChange] = []
 
     def to_dict(self) -> dict:
