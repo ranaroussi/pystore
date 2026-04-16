@@ -70,5 +70,6 @@ setup(
         'python-snappy>=0.6.1',
         'multitasking>=0.0.11',
         'partd>=1.4.0',
+        'psutil>=5.9.0',
     ],
 )
