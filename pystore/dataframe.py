@@ -166,11 +166,16 @@ def restore_dataframe_from_storage(df: pd.DataFrame, metadata: dict) -> pd.DataF
                         new_levels.append(level)
                 df.index = multi_index.set_levels(cast(Any, new_levels))
 
-    # Restore original string-like columns back to plain object dtype for compatibility
+    # Columns originally stored as plain Python object (e.g. mixed strings)
+    # may round-trip through parquet as string[pyarrow].  Cast them back to
+    # object to preserve the original dtype.
+    # Columns that were originally pandas StringDtype ("string") must NOT be
+    # cast to object – the StringDtype round-trip is already correct via the
+    # recorded column_dtypes metadata.
     for col, dtype_str in metadata.get("column_dtypes", {}).items():
         if (
             col in df.columns
-            and dtype_str in {"object", "string"}
+            and dtype_str == "object"
             and str(df[col].dtype).startswith("string")
         ):
             df[col] = df[col].astype("object")

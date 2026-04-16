@@ -13,7 +13,7 @@ class TestPerformanceOptimizations:
     """Test performance optimization features"""
 
     def test_streaming_append(self, test_collection):
-        """Test streaming append functionality"""
+        """Test streaming append with non-overlapping chunks (keep_last default)"""
         # Create initial data
         initial_data = pd.DataFrame(
             {"value": range(1000)},
@@ -22,22 +22,54 @@ class TestPerformanceOptimizations:
 
         test_collection.write("stream_test", initial_data)
 
-        # Create data iterator
+        # Create non-overlapping chunks so total count is deterministic.
+        # Initial data ends ~2024-02-11; start stream well past that in March.
         def data_generator():
             for i in range(5):
+                start = pd.Timestamp("2024-03-01") + pd.Timedelta(days=i * 5)
                 chunk_data = pd.DataFrame(
                     {"value": range(i * 100, (i + 1) * 100)},
-                    index=pd.date_range("2024-02-01", periods=100, freq=f"{i + 1}h"),
+                    index=pd.date_range(start, periods=100, freq="1h"),
                 )
                 yield chunk_data
 
         # Use streaming append
         test_collection.append_stream("stream_test", data_generator(), chunk_size=100)
 
-        # Verify all data was appended
+        # Verify all data was appended (no overlaps, so 1000 + 500 = 1500)
         item = test_collection.item("stream_test")
         df = item.to_pandas()
         assert len(df) == 1500  # 1000 initial + 500 from stream
+
+    def test_streaming_append_keep_last_deduplication(self, test_collection):
+        """Regression: append_stream must default to keep_last, not keep_all.
+
+        An overlapping row in a streamed chunk should replace the existing row
+        (keep_last semantics), not create a second copy (keep_all semantics).
+        """
+        # Write an item with a known row at 2024-01-02
+        initial_data = pd.DataFrame(
+            {"value": [10, 20, 30]},
+            index=pd.date_range("2024-01-01", periods=3, freq="D"),
+        )
+        test_collection.write("dedup_stream_test", initial_data)
+
+        # Stream a chunk that overlaps at 2024-01-02 with a new value
+        def overlapping_generator():
+            yield pd.DataFrame(
+                {"value": [99]},
+                index=pd.DatetimeIndex(["2024-01-02"]),
+            )
+
+        test_collection.append_stream(
+            "dedup_stream_test", overlapping_generator()
+        )
+
+        df = test_collection.item("dedup_stream_test").to_pandas()
+
+        # keep_last: only 3 unique dates, the 2024-01-02 value is replaced by 99
+        assert len(df) == 3, f"Expected 3 rows (keep_last), got {len(df)}"
+        assert df.loc["2024-01-02", "value"] == 99, "Overlapping row was not replaced"
 
     def test_batch_write(self, test_collection):
         """Test batch write functionality"""
@@ -179,15 +211,12 @@ class TestPerformanceOptimizations:
         # Read in chunks
         chunks = list(read_in_chunks(test_collection, "large_item", chunk_size=10_000))
 
-        # Should have 10 chunks
-        assert len(chunks) == 10
-
-        # Verify each chunk
-        total_rows = 0
+        # Each chunk must be no larger than chunk_size
         for chunk in chunks:
             assert len(chunk) <= 10_000
-            total_rows += len(chunk)
 
+        # All rows must be recovered
+        total_rows = sum(len(c) for c in chunks)
         assert total_rows == 100_000
 
     def test_metadata_caching(self, test_collection, sample_data):

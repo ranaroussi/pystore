@@ -117,29 +117,36 @@ def read_in_chunks(
     pd.DataFrame
         Chunks of the data
     """
-    # Get item
+    # Get item as Dask DataFrame (lazy – no full materialisation)
     item_obj = collection.item(item, columns=columns)
-    full_df = item_obj.to_pandas()
+    dask_df = item_obj.data
 
-    # Get total rows
-    total_rows = len(full_df)
+    total_rows = len(dask_df)
     logger.info(f"Reading {total_rows:,} rows in chunks of {chunk_size:,}")
 
-    # Read in chunks
-    for start_idx in range(0, total_rows, chunk_size):
+    rows_read = 0
+
+    # Stream one Dask partition at a time to bound peak memory usage
+    for partition_idx in range(dask_df.npartitions):
         check_memory_usage()
 
-        end_idx = min(start_idx + chunk_size, total_rows)
+        # Compute only this partition – prior partitions are no longer referenced
+        partition_df = dask_df.get_partition(partition_idx).compute()
 
-        # Get chunk
-        chunk = full_df.iloc[start_idx:end_idx].copy()
+        # Yield chunk_size slices from within the partition
+        for start in range(0, len(partition_df), chunk_size):
+            end = min(start + chunk_size, len(partition_df))
+            chunk = partition_df.iloc[start:end].copy()
 
-        logger.debug(f"Read chunk {start_idx:,}-{end_idx:,} ({len(chunk):,} rows)")
+            logger.debug(
+                f"Read chunk {rows_read:,}-{rows_read + len(chunk):,} ({len(chunk):,} rows)"
+            )
 
-        yield chunk
+            yield chunk
+            rows_read += len(chunk)
+            del chunk
 
-        # Explicitly delete chunk to free memory
-        del chunk
+        del partition_df
         gc.collect()
 
 

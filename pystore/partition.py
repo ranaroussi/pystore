@@ -22,11 +22,15 @@
 Partition optimization strategies for PyStore
 """
 
+import os
+import shutil
+import tempfile
 from typing import Union
 
 import dask.dataframe as dd
 import pandas as pd
 
+from . import utils
 from .logger import get_logger
 
 logger = get_logger(__name__)
@@ -130,18 +134,50 @@ def optimize_time_series_partitions(
         else:
             freq = "yearly"
 
-    partition_days = {
-        "monthly": 30,
-        "quarterly": 90,
-        "yearly": 365,
-    }.get(freq, min_partition_days)
-
-    n_partitions = max(2, min(100, int(date_range_days / max(1, partition_days)) + 1))
+    # Build time-aligned divisions so partition boundaries coincide with
+    # calendar period starts (month/quarter/year) rather than arbitrary row counts.
+    # Dask requires:
+    #   divisions[0]  == source.divisions[0]  (actual data min)
+    #   divisions[-1] == source.divisions[-1] (actual data max)
+    # Interior boundaries are calendar-aligned period starts.
+    period_code = {"monthly": "M", "quarterly": "Q", "yearly": "Y"}.get(freq, "M")
+    pandas_freq = {"monthly": "MS", "quarterly": "QS", "yearly": "YS"}.get(freq, "MS")
 
     try:
-        repartitioned = dask_data.repartition(npartitions=n_partitions)
+        # Strip timezone for Period arithmetic, restore afterwards if needed.
+        tz = getattr(min_date, "tzinfo", None)
+        min_naive = min_date.tz_localize(None) if tz else min_date
+        max_naive = max_date.tz_localize(None) if tz else max_date
+
+        # Period starts from the period containing min_date through the period
+        # containing max_date.  These are the candidate interior boundaries.
+        start_boundary = min_naive.to_period(period_code).to_timestamp()
+        end_boundary = max_naive.to_period(period_code).to_timestamp()
+        interior_candidates = pd.date_range(
+            start=start_boundary, end=end_boundary, freq=pandas_freq
+        )
+
+        # Build the divisions list:
+        #   [min_date] + [interior boundaries strictly between min and max] + [max_date]
+        # This satisfies Dask's constraint that endpoints match the source.
+        divisions_list: list = [min_date]
+        for boundary in interior_candidates:
+            b = boundary.tz_localize(tz) if tz else boundary
+            if b > min_date and b < max_date:
+                divisions_list.append(b)
+        divisions_list.append(max_date)
+
+        n_partitions = len(divisions_list) - 1
+
+        if not dask_data.known_divisions:
+            # repartition(divisions=...) requires known source divisions; fall
+            # through to the npartitions fallback with the calendar-derived count.
+            raise ValueError("source divisions unknown")
+
+        repartitioned = dask_data.repartition(divisions=divisions_list)
         logger.info(
-            f"Repartitioned time series data into {n_partitions} {freq} partitions"
+            f"Repartitioned time series data into {n_partitions} {freq} partitions "
+            f"with time-aligned boundaries"
         )
         return repartitioned, n_partitions
     except Exception as e:
@@ -175,20 +211,28 @@ def rebalance_partitions(
     """
     logger.info(f"Starting partition rebalancing for item '{item}'")
 
-    # Read current data
+    # Read current item as a Dask DataFrame – avoids materialising the full
+    # dataset as pandas and allows us to use the time-aligned divisions returned
+    # by the optimiser directly.
     item_obj = collection.item(item)
-    data = item_obj.to_pandas()
     metadata = item_obj.metadata.copy()
 
-    # Check if time series
-    is_time_series = pd.api.types.is_datetime64_any_dtype(data.index)
+    # Re-read with calculate_divisions=True so Dask knows the sorted boundaries
+    # from the parquet row-group statistics.  This is required for
+    # repartition(divisions=...) to work without a full data shuffle.
+    item_path = collection.get_item_path(item, as_string=True)
+    dask_data = dd.read_parquet(item_path, engine="pyarrow", calculate_divisions=True)
 
-    # Optimize partitions
+    # Check if time series using the Dask index dtype
+    is_time_series = pd.api.types.is_datetime64_any_dtype(dask_data.index.dtype)
+
+    # Optimise partitions and keep the returned Dask DataFrame with proper divisions
     if is_time_series and time_based:
-        _, n_partitions = optimize_time_series_partitions(data)
+        optimized_dask, n_partitions = optimize_time_series_partitions(dask_data)
     else:
-        n_partitions = calculate_optimal_partitions(data, target_size_mb)
+        n_partitions = calculate_optimal_partitions(dask_data, target_size_mb)
         n_partitions = max(1, n_partitions)
+        optimized_dask = dask_data.repartition(npartitions=n_partitions)
 
     # Update metadata
     metadata["_partitions"] = n_partitions
@@ -196,9 +240,39 @@ def rebalance_partitions(
         "time_based" if (is_time_series and time_based) else "size_based"
     )
 
-    # Rewrite with optimized partitions
-    collection.write(
-        item, data, metadata=metadata, overwrite=True, npartitions=n_partitions
-    )
+    # Write the optimised Dask DataFrame to a temporary location in the same
+    # filesystem first.  Dask prohibits reading and writing the same path in one
+    # task graph, so we must stage the output and then atomically swap it in.
+    collection_dir = str(utils.make_path(collection.datastore, collection.collection))
+    final_path = utils.make_path(collection.datastore, collection.collection, item)
+    backup_path = utils.make_path(collection.datastore, collection.collection, f"_rebalance_backup_{item}")
+
+    tmp_dir = tempfile.mkdtemp(dir=collection_dir)
+    tmp_data_path = os.path.join(tmp_dir, "data")
+    try:
+        # Write the optimised Dask DataFrame to the temp path
+        dd.to_parquet(
+            optimized_dask,
+            tmp_data_path,
+            compression="snappy",
+            engine="pyarrow",
+            write_metadata_file=True,
+        )
+        utils.write_metadata(utils.make_path(tmp_data_path), metadata)
+
+        # Atomically swap: backup original → move temp → remove backup
+        if utils.path_exists(backup_path):
+            shutil.rmtree(str(backup_path))
+        shutil.move(str(final_path), str(backup_path))
+        shutil.move(tmp_data_path, str(final_path))
+        shutil.rmtree(str(backup_path))
+    except Exception:
+        # Restore original from backup if the swap failed
+        if utils.path_exists(backup_path) and not utils.path_exists(final_path):
+            shutil.move(str(backup_path), str(final_path))
+        raise
+    finally:
+        if os.path.exists(tmp_dir):
+            shutil.rmtree(tmp_dir)
 
     logger.info(f"Successfully rebalanced '{item}' with {n_partitions} partitions")

@@ -181,6 +181,47 @@ class TestComplexDataTypes:
         assert isinstance(result["interval"].dtype, pd.IntervalDtype)
         pd.testing.assert_frame_equal(result, df, check_like=True)
 
+    def test_string_dtype_roundtrip(self):
+        """Regression: pandas StringDtype columns must round-trip as StringDtype.
+
+        A column declared with dtype='string' must NOT be silently downcast to
+        object dtype when restoring from storage.
+        """
+        df = pd.DataFrame(
+            {
+                "name": pd.array(["alice", "bob", "carol"], dtype="string"),
+                "value": [1, 2, 3],
+            }
+        )
+        assert str(df["name"].dtype) == "string", "pre-condition: column is StringDtype"
+
+        self.collection.write("string_dtype_test", df)
+        result = self.collection.item("string_dtype_test").to_pandas()
+
+        # The restored column must keep StringDtype, not become plain object
+        assert str(result["name"].dtype) == "string", (
+            f"StringDtype column was silently downcast to {result['name'].dtype}"
+        )
+        assert result["name"].tolist() == ["alice", "bob", "carol"]
+
+    def test_object_dtype_still_restored(self):
+        """Columns that were object dtype (not StringDtype) must still become object
+        even if parquet reads them as string[pyarrow] internally."""
+        df = pd.DataFrame(
+            {
+                "label": ["x", "y", "z"],  # plain object, not StringDtype
+                "value": [10, 20, 30],
+            }
+        )
+        assert str(df["label"].dtype) == "object", "pre-condition: plain object column"
+
+        self.collection.write("object_col_test", df)
+        result = self.collection.item("object_col_test").to_pandas()
+
+        assert str(result["label"].dtype) == "object", (
+            f"object column became {result['label'].dtype} after round-trip"
+        )
+
     def test_nested_objects(self):
         """Test nested objects (lists and dicts)"""
         df = pd.DataFrame(

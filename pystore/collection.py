@@ -846,7 +846,7 @@ class Collection:
         data_iterator,
         chunk_size: int = 10000,
         epochdate: bool = False,
-        duplicate_handling: str = "keep_all",
+        duplicate_handling: str = "keep_last",
         validate_schema: bool = True,
         reload_items: bool = True,
         **kwargs,
@@ -864,7 +864,7 @@ class Collection:
             Size of chunks to process at a time
         epochdate : bool, default False
             Convert datetime index to epoch int64
-        duplicate_handling : str, default "keep_all"
+        duplicate_handling : str, default "keep_last"
             How to handle duplicates: "keep_last", "keep_first", "keep_all", "error"
         validate_schema : bool, default True
             Validate schema compatibility before appending
