@@ -32,6 +32,7 @@ from .dataframe import (
     DataTypeHandler,
     MultiIndexHandler,
     TimezoneHandler,
+    are_dtypes_compatible,
     prepare_dataframe_for_storage,
     validate_dataframe_for_storage,
 )
@@ -308,9 +309,7 @@ class Collection:
             **kwargs,
         )
 
-        utils.write_metadata(
-            self._item_path(item), metadata
-        )
+        utils.write_metadata(self._item_path(item), metadata)
 
         # update items
         self.items.add(item)
@@ -656,7 +655,9 @@ class Collection:
             return True
 
         shutil.rmtree(
-            utils.make_path(self.datastore, self.collection, "_snapshots", snapshot_name)
+            utils.make_path(
+                self.datastore, self.collection, "_snapshots", snapshot_name
+            )
         )
         self.snapshots = self.list_snapshots()
         return True
@@ -676,18 +677,66 @@ class Collection:
         """Validate schema compatibility between existing and new data"""
         existing_columns = set(existing_data.columns)
         new_columns = set(new_data.columns)
+        error_lines = ["Schema mismatch detected:"]
+        has_mismatch = False
 
         if existing_columns != new_columns:
             missing_in_new = existing_columns - new_columns
             extra_in_new = new_columns - existing_columns
 
-            error_msg = "Schema mismatch detected:\n"
             if missing_in_new:
-                error_msg += f"  Missing columns in new data: {missing_in_new}\n"
+                error_lines.append(f"  Missing columns in new data: {missing_in_new}")
+                has_mismatch = True
             if extra_in_new:
-                error_msg += f"  Extra columns in new data: {extra_in_new}\n"
+                error_lines.append(f"  Extra columns in new data: {extra_in_new}")
+                has_mismatch = True
 
-            raise ValidationError(error_msg)
+        for col in sorted(existing_columns & new_columns):
+            existing_dtype = existing_data[col].dtype
+            new_dtype = new_data[col].dtype
+            if not are_dtypes_compatible(existing_dtype, new_dtype):
+                error_lines.append(
+                    f"  Dtype mismatch for column '{col}': "
+                    f"existing {existing_dtype}, new {new_dtype}"
+                )
+                has_mismatch = True
+
+        existing_index = existing_data.index
+        new_index = new_data.index
+
+        if isinstance(existing_index, pd.MultiIndex) or isinstance(
+            new_index, pd.MultiIndex
+        ):
+            if isinstance(existing_index, pd.MultiIndex) != isinstance(
+                new_index, pd.MultiIndex
+            ):
+                error_lines.append(
+                    "  Dtype mismatch for index: existing and new data use "
+                    "different index structures"
+                )
+                has_mismatch = True
+            elif isinstance(existing_index, pd.MultiIndex) and isinstance(
+                new_index, pd.MultiIndex
+            ):
+                for level, (existing_dtype, new_dtype) in enumerate(
+                    zip(existing_index.dtypes, new_index.dtypes)
+                ):
+                    if not are_dtypes_compatible(existing_dtype, new_dtype):
+                        level_name = existing_index.names[level]
+                        error_lines.append(
+                            f"  Dtype mismatch for index level {level_name!r}: "
+                            f"existing {existing_dtype}, new {new_dtype}"
+                        )
+                        has_mismatch = True
+        elif not are_dtypes_compatible(existing_index.dtype, new_index.dtype):
+            error_lines.append(
+                "  Dtype mismatch for index: "
+                f"existing {existing_index.dtype}, new {new_index.dtype}"
+            )
+            has_mismatch = True
+
+        if has_mismatch:
+            raise ValidationError("\n".join(error_lines))
 
     def append_stream(
         self,
@@ -791,9 +840,7 @@ class Collection:
 
                 # Flush when buffer reaches the threshold
                 if len(buffer) >= flush_every:
-                    logger.debug(
-                        f"Flushing {len(buffer)} buffered chunks to disk"
-                    )
+                    logger.debug(f"Flushing {len(buffer)} buffered chunks to disk")
                     _flush_buffer()
 
             # Flush any remaining buffered chunks

@@ -35,6 +35,72 @@ from .logger import get_logger
 logger = get_logger(__name__)
 
 
+def _is_string_compatible_dtype(dtype: Any) -> bool:
+    """Return True when a dtype belongs to the string/object compatibility set."""
+    return isinstance(dtype, pd.StringDtype) or pd.api.types.is_object_dtype(dtype)
+
+
+def _is_numeric_compatible_dtype(dtype: Any) -> bool:
+    """Return True for integer/unsigned/float dtypes, excluding bool."""
+    if pd.api.types.is_bool_dtype(dtype):
+        return False
+    return (
+        pd.api.types.is_integer_dtype(dtype)
+        or pd.api.types.is_unsigned_integer_dtype(dtype)
+        or pd.api.types.is_float_dtype(dtype)
+    )
+
+
+def are_dtypes_compatible(existing_dtype: Any, new_dtype: Any) -> bool:
+    """Check whether two pandas dtypes can be treated as schema-compatible.
+
+    This normalizes parquet / pyarrow round-trip differences so append-time
+    schema validation operates on pandas-level compatibility rather than raw
+    storage-level exact dtype strings.
+    """
+    existing = pd.api.types.pandas_dtype(existing_dtype)
+    new = pd.api.types.pandas_dtype(new_dtype)
+
+    if existing == new:
+        return True
+
+    if _is_numeric_compatible_dtype(existing) and _is_numeric_compatible_dtype(new):
+        return True
+
+    if _is_string_compatible_dtype(existing) and _is_string_compatible_dtype(new):
+        return True
+
+    if isinstance(existing, pd.DatetimeTZDtype) or isinstance(new, pd.DatetimeTZDtype):
+        return (
+            isinstance(existing, pd.DatetimeTZDtype)
+            and isinstance(new, pd.DatetimeTZDtype)
+            and str(existing.tz) == str(new.tz)
+        )
+
+    if pd.api.types.is_datetime64_any_dtype(
+        existing
+    ) and pd.api.types.is_datetime64_any_dtype(new):
+        return True
+
+    if pd.api.types.is_timedelta64_dtype(
+        existing
+    ) and pd.api.types.is_timedelta64_dtype(new):
+        return True
+
+    if isinstance(existing, pd.CategoricalDtype) and isinstance(
+        new, pd.CategoricalDtype
+    ):
+        return existing == new
+
+    if isinstance(existing, pd.IntervalDtype) and isinstance(new, pd.IntervalDtype):
+        return existing == new
+
+    if isinstance(existing, pd.PeriodDtype) and isinstance(new, pd.PeriodDtype):
+        return existing == new
+
+    return False
+
+
 def prepare_dataframe_for_storage(df: pd.DataFrame) -> tuple[pd.DataFrame, dict]:
     """
     Prepare DataFrame for storage, handling MultiIndex and special types
