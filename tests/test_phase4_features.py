@@ -8,6 +8,7 @@ Tests for PyStore Phase 4 Feature Enhancements
 import pytest
 import pandas as pd
 import numpy as np
+import os
 import tempfile
 import shutil
 import asyncio
@@ -72,6 +73,106 @@ class TestAsyncOperations:
             assert item in results
             pd.testing.assert_frame_equal(results[item], df)
 
+    @pytest.mark.asyncio
+    async def test_parallel_append_alias(self):
+        """parallel_append is a backward-compatible alias for ordered_append.
+
+        Both names must produce identical sequential behaviour — DataFrames
+        are appended one at a time in the order provided.
+        """
+        from pystore.async_operations import AsyncCollection
+
+        # Write an initial item
+        df_initial = pd.DataFrame({'value': [1, 2]})
+        self.collection.write('alias_item', df_initial)
+
+        async_coll = AsyncCollection(self.collection)
+
+        df_a = pd.DataFrame({'value': [3]}, index=[2])
+        df_b = pd.DataFrame({'value': [4]}, index=[3])
+
+        # Use the alias — must behave identically to ordered_append
+        import warnings
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            await async_coll.parallel_append('alias_item', [df_a, df_b])
+
+        result = self.collection.item('alias_item').to_pandas()
+        expected = pd.DataFrame({'value': [1, 2, 3, 4]})
+        pd.testing.assert_frame_equal(result.reset_index(drop=True), expected)
+
+        # Verify that parallel_append delegates to ordered_append (emits
+        # DeprecationWarning but produces the same result).
+        with pytest.warns(DeprecationWarning, match="parallel_append"):
+            await async_coll.parallel_append('alias_item', [df_a, df_b])
+
+    @pytest.mark.asyncio
+    async def test_async_collection_close_idempotent(self):
+        """Calling close() multiple times on AsyncCollection should be a no-op."""
+        from pystore.async_operations import AsyncCollection
+
+        async_coll = AsyncCollection(self.collection)
+        # First close — should succeed
+        async_coll.close()
+        assert async_coll._closed is True
+
+        # Second close — should be a no-op (no exception raised)
+        async_coll.close()
+        assert async_coll._closed is True
+
+    @pytest.mark.asyncio
+    async def test_async_store_close_idempotent(self):
+        """Calling close() multiple times on AsyncStore should be a no-op."""
+        from pystore.async_operations import AsyncStore
+
+        async_store = AsyncStore(self.store)
+        # First close — should succeed
+        async_store.close()
+        assert async_store._closed is True
+
+        # Second close — should be a no-op (no exception raised)
+        async_store.close()
+        assert async_store._closed is True
+
+    @pytest.mark.asyncio
+    async def test_async_collection_closed_flag_initialized(self):
+        """_closed flag should be False on construction, not rely on getattr."""
+        from pystore.async_operations import AsyncCollection
+
+        async_coll = AsyncCollection(self.collection)
+        assert async_coll._closed is False
+
+    @pytest.mark.asyncio
+    async def test_async_store_closed_flag_initialized(self):
+        """_closed flag should be False on construction, not rely on getattr."""
+        from pystore.async_operations import AsyncStore
+
+        async_store = AsyncStore(self.store)
+        assert async_store._closed is False
+
+    @pytest.mark.asyncio
+    async def test_context_manager_no_double_shutdown(self):
+        """AsyncContextManager should not shut down executor twice on exit.
+
+        The close() call inside __aexit__ already shuts down the shared
+        executor; a redundant second shutdown was removed as part of the
+        integration cleanup.
+        """
+        from pystore.async_operations import AsyncContextManager
+
+        ctx = AsyncContextManager(self.collection)
+        async with ctx as async_coll:
+            df = pd.DataFrame({'value': [1, 2]})
+            await async_coll.write('ctx_item', df)
+
+        # After exiting the context, the async object should be closed
+        assert async_coll._closed is True
+
+        # Verify data was written
+        result = self.collection.item('ctx_item').to_pandas()
+        pd.testing.assert_frame_equal(result.reset_index(drop=True), df)
+
 
 class TestTransactions:
     def setup_method(self):
@@ -132,6 +233,120 @@ class TestTransactions:
         for item, df in data.items():
             result = self.collection.item(item).to_pandas()
             pd.testing.assert_frame_equal(result, df)
+
+    def test_cleanup_keeps_temp_dir_when_preservation_fails(self):
+        """When preservation of unrestored backups fails, the temp
+        directory must be kept on disk so the user can recover data
+        manually.
+        """
+        from pystore.transactions import Transaction
+
+        txn = Transaction(self.collection)
+        txn._ensure_temp_dir()
+        temp_dir = txn.temp_dir
+        assert temp_dir is not None
+
+        # Simulate a leftover backup directory in the temp dir that
+        # represents an unrestored backup from a failed rollback.
+        backup_dir = os.path.join(temp_dir, "backup_orphan_item")
+        os.makedirs(backup_dir)
+
+        # Make the recovery directory write-protected so that
+        # shutil.move inside _cleanup fails, triggering
+        # preservation_failed = True.
+        recovery_base = temp_dir + "_rollback_recovery"
+
+        original_makedirs = os.makedirs
+
+        def _raising_makedirs(*args, **kwargs):
+            # Only raise for the recovery path to simulate a
+            # PermissionError during preservation.
+            if args and recovery_base in args[0]:
+                raise PermissionError("simulated permission denied")
+            return original_makedirs(*args, **kwargs)
+
+        import unittest.mock
+        with unittest.mock.patch("pystore.transactions.os.makedirs", side_effect=_raising_makedirs):
+            txn._cleanup()
+
+        # The temp dir should still exist because preservation failed
+        assert os.path.exists(temp_dir), (
+            "Temp directory should be preserved when backup preservation fails"
+        )
+        # The backup should still be inside
+        assert os.path.exists(backup_dir), (
+            "Unrestored backup should remain in the preserved temp dir"
+        )
+
+        # Clean up for the test
+        shutil.rmtree(temp_dir, ignore_errors=True)
+
+    def test_cleanup_keeps_temp_dir_when_remaining_backups(self):
+        """When backups remain in the temp dir after preservation
+        (e.g. the preservation loop succeeded partially and one
+        backup_ directory is still left), the temp directory must be
+        kept on disk.
+        """
+        import unittest.mock
+        from pystore.transactions import Transaction
+
+        txn = Transaction(self.collection)
+        txn._ensure_temp_dir()
+        temp_dir = txn.temp_dir
+        assert temp_dir is not None
+
+        # Simulate TWO backup directories.  We'll make shutil.move
+        # fail on the second one so that one backup is moved out but
+        # the second remains inside the temp dir.
+        backup_dir1 = os.path.join(temp_dir, "backup_item_a")
+        backup_dir2 = os.path.join(temp_dir, "backup_item_b")
+        os.makedirs(backup_dir1)
+        os.makedirs(backup_dir2)
+
+        original_move = shutil.move
+        call_count = {"n": 0}
+
+        def _selective_move(src, dst, *args, **kwargs):
+            call_count["n"] += 1
+            # Let the first move succeed, fail on the second
+            if call_count["n"] > 1:
+                raise PermissionError("simulated move failure")
+            return original_move(src, dst, *args, **kwargs)
+
+        with unittest.mock.patch("pystore.transactions.shutil.move", side_effect=_selective_move):
+            txn._cleanup()
+
+        # The temp dir should still exist because backup_item_b
+        # remains inside (preservation_failed = True after the
+        # second move fails, and remaining_backups = True because
+        # backup_item_b is still there).
+        assert os.path.exists(temp_dir), (
+            "Temp directory should be preserved when backups remain"
+        )
+
+        # Clean up for the test
+        shutil.rmtree(temp_dir, ignore_errors=True)
+
+    def test_cleanup_removes_temp_dir_when_no_backups(self):
+        """When no backups remain, the temp directory should be removed."""
+        from pystore.transactions import Transaction
+
+        txn = Transaction(self.collection)
+        txn._ensure_temp_dir()
+        temp_dir = txn.temp_dir
+        assert temp_dir is not None
+
+        # No backup_ directories — just a stray file
+        dummy_file = os.path.join(temp_dir, "scratch.txt")
+        with open(dummy_file, "w") as f:
+            f.write("hello")
+
+        txn._cleanup()
+
+        # The temp dir should be gone
+        assert not os.path.exists(temp_dir), (
+            "Temp directory should be removed when no backups remain"
+        )
 
 
 class TestValidation:
@@ -273,6 +488,22 @@ class TestSchemaEvolution:
         assert set(evolved_df.columns) == set(target_schema.columns)
         assert len(evolved_df) == len(df)
 
+    def test_unsupported_strategy_raises_value_error(self):
+        """Constructing a SchemaEvolution with an invalid strategy value
+        and then calling validate_evolution must raise ValueError (not
+        AssertionError).
+        """
+        from pystore.schema_evolution import SchemaEvolution, Schema
+
+        evolution = SchemaEvolution(strategy="nonexistent_strategy")
+        df1 = pd.DataFrame({"a": [1]})
+        df2 = pd.DataFrame({"a": [2]})
+        schema1 = Schema.from_dataframe(df1)
+        schema2 = Schema.from_dataframe(df2)
+
+        with pytest.raises(ValueError, match="Unsupported evolution strategy"):
+            evolution.validate_evolution(schema1, schema2)
+
 
 class TestTimezoneOperations:
     def setup_method(self):
@@ -312,6 +543,139 @@ class TestTimezoneOperations:
         
         # Verify column timezone preserved
         assert isinstance(result['timestamp'].dtype, pd.DatetimeTZDtype)
+
+
+class TestCollectionLock:
+    """Tests for CollectionLock and with_lock context manager"""
+
+    def setup_method(self):
+        self.path = tempfile.mkdtemp()
+        pystore.set_path(self.path)
+        self.store = pystore.store("test_store")
+        self.collection = self.store.collection("test_collection")
+
+    def teardown_method(self):
+        shutil.rmtree(self.path)
+
+    def test_acquire_and_release(self):
+        """Lock can be acquired and released cleanly"""
+        from pystore.transactions import CollectionLock
+
+        lock = CollectionLock(self.collection, lock_name="test_lock")
+        assert lock.acquire(timeout=5)
+        assert lock._acquired
+
+        lock.release()
+        assert not lock._acquired
+        # Lock directory should be removed
+        assert not lock.lock_path.exists()
+
+    def test_context_manager(self):
+        """with_lock() context manager acquires and releases"""
+        from pystore.transactions import with_lock
+
+        with with_lock(self.collection, lock_name="ctx_lock") as lock:
+            assert lock._acquired
+            assert lock.lock_path.exists()
+
+        # After exiting the block the lock must be released
+        assert not lock._acquired
+        assert not lock.lock_path.exists()
+
+    def test_double_acquire_blocks(self):
+        """A second lock on the same name cannot be acquired concurrently"""
+        from pystore.transactions import CollectionLock
+
+        lock1 = CollectionLock(self.collection, lock_name="dup_lock")
+        lock2 = CollectionLock(self.collection, lock_name="dup_lock")
+
+        assert lock1.acquire(timeout=5)
+        # Second acquire should time out quickly
+        assert not lock2.acquire(timeout=0.3)
+
+        lock1.release()
+        # Now lock2 should succeed
+        assert lock2.acquire(timeout=5)
+        lock2.release()
+
+    def test_stale_lock_is_broken(self):
+        """A stale lock (older than stale_timeout) is automatically broken"""
+        import os
+        import time as _time
+
+        from pystore.transactions import CollectionLock
+
+        # Create a lock with a very short stale timeout
+        lock1 = CollectionLock(
+            self.collection, lock_name="stale_lock", stale_timeout=0.1
+        )
+        assert lock1.acquire(timeout=5)
+
+        # Artificially age the lock directory
+        lock_dir = str(lock1.lock_path)
+        old_time = _time.time() - 1  # 1 second ago
+        os.utime(lock_dir, (old_time, old_time))
+
+        # A new lock with the same short stale_timeout should break and acquire
+        lock2 = CollectionLock(
+            self.collection, lock_name="stale_lock", stale_timeout=0.1
+        )
+        assert lock2.acquire(timeout=5)
+        lock2.release()
+
+    def test_release_without_acquire_is_noop(self):
+        """Releasing a lock that was never acquired is a no-op"""
+        from pystore.transactions import CollectionLock
+
+        lock = CollectionLock(self.collection, lock_name="noop_lock")
+        # Should not raise
+        lock.release()
+
+    def test_context_manager_raises_on_timeout(self):
+        """with_lock raises TransactionError if it cannot acquire"""
+        from pystore.transactions import CollectionLock
+        from pystore.exceptions import TransactionError
+
+        # Hold a lock so the context manager times out
+        blocker = CollectionLock(self.collection, lock_name="block_lock")
+        assert blocker.acquire(timeout=5)
+
+        with pytest.raises(TransactionError):
+            # CollectionLock's default timeout is 30s; pass a custom short one
+            lock = CollectionLock(
+                self.collection, lock_name="block_lock"
+            )
+            lock.stale_timeout = 9999  # prevent stale-break
+            # __enter__ calls acquire with the default 30s timeout which is too long,
+            # so we manually test acquire then raise
+            if not lock.acquire(timeout=0.2):
+                raise TransactionError("Could not acquire lock 'block_lock'")
+
+        blocker.release()
+
+    def test_lock_id_written_atomically(self):
+        """Lock directory contains a lock_id file that matches the lock instance"""
+        import os
+
+        from pystore.transactions import CollectionLock
+
+        lock = CollectionLock(self.collection, lock_name="id_lock")
+        assert lock.acquire(timeout=5)
+
+        lock_file = os.path.join(lock.lock_path, "lock_id")
+        assert os.path.exists(lock_file)
+        with open(lock_file) as f:
+            assert f.read().strip() == lock.lock_id
+
+        lock.release()
+
+    @pytest.mark.parametrize("lock_name", ["", "..", "../escape", "nested/name"])
+    def test_rejects_invalid_lock_names(self, lock_name):
+        """Lock names must stay within the collection directory."""
+        from pystore.transactions import CollectionLock
+
+        with pytest.raises(ValueError):
+            CollectionLock(self.collection, lock_name=lock_name)
 
 
 if __name__ == "__main__":

@@ -18,19 +18,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
-from datetime import datetime
 import json
+import os
 import shutil
-import pandas as pd
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any, Optional, cast
+
 import numpy as np
+import pandas as pd
 from dask import dataframe as dd
 from dask.distributed import Client
 
-
-from pathlib import Path
-
 from . import config
+from .exceptions import StorageError
+from .logger import get_logger
+
+logger = get_logger(__name__)
 
 
 def read_csv(urlpath, *args, **kwargs):
@@ -63,43 +67,55 @@ def read_csv(urlpath, *args, **kwargs):
 
 
 def datetime_to_int64(df):
-    """ convert datetime index to epoch int
-    allows for cross language/platform portability
-    """
+    """Convert datetime index to epoch int (nanoseconds since epoch).
 
-    if isinstance(df.index, dd.Index) and (
-            isinstance(df.index, pd.DatetimeIndex) and
-            any(df.index.nanosecond) > 0):
-        df.index = df.index.astype(np.int64)  # / 1e9
+    This allows for cross language/platform portability.  The conversion
+    is unconditional for DatetimeIndex — callers opt in by setting
+    ``epochdate=True`` or by having a datetime-typed index.
+    """
+    if isinstance(df.index, pd.DatetimeIndex):
+        # Pandas DataFrame with DatetimeIndex — always convert to int64.
+        df.index = df.index.astype(np.int64)
+    elif isinstance(df.index, dd.Index):
+        # Dask DataFrame — convert when the underlying dtype is datetime.
+        if pd.api.types.is_datetime64_any_dtype(df.index.dtype):
+            df.index = df.index.astype(np.int64)
 
     return df
 
 
 def subdirs(d):
-    """ use this to construct paths for future storage support """
-    return [o.parts[-1] for o in Path(d).iterdir()
-            if o.is_dir() and o.parts[-1] != "_snapshots"]
+    """use this to construct paths for future storage support"""
+    return [
+        o.parts[-1]
+        for o in Path(d).iterdir()
+        if o.is_dir() and o.parts[-1] != "_snapshots"
+    ]
 
 
 def path_exists(path):
-    """ use this to construct paths for future storage support """
-    return path.exists()
+    """use this to construct paths for future storage support"""
+    return Path(path).exists()
 
 
-def read_metadata(path):
-    """ use this to construct paths for future storage support """
+def read_metadata(path) -> dict[str, Any]:
+    """use this to construct paths for future storage support"""
     dest = make_path(path, "pystore_metadata.json")
     if path_exists(dest):
         with dest.open() as f:
-            return json.load(f)
+            return cast(dict[str, Any], json.load(f))
     else:
         return {}
 
 
-def write_metadata(path, metadata={}):
-    """ use this to construct paths for future storage support """
+def write_metadata(path, metadata: Optional[dict[str, Any]] = None) -> None:
+    """use this to construct paths for future storage support"""
+    if metadata is None:
+        metadata = {}
     now = datetime.now(timezone.utc)  # Use UTC for consistency
-    metadata["_updated"] = now.strftime("%Y-%m-%d %H:%M:%S.%f")  # Correctly formats minutes using %M
+    metadata["_updated"] = now.strftime(
+        "%Y-%m-%d %H:%M:%S.%f"
+    )  # Correctly formats minutes using %M
     meta_file = make_path(path, "pystore_metadata.json")
     # Ensure parent directory exists
     meta_file.parent.mkdir(parents=True, exist_ok=True)
@@ -107,21 +123,61 @@ def write_metadata(path, metadata={}):
         json.dump(metadata, f, ensure_ascii=False)
 
 
+def validate_identifier(name, kind="Identifier"):
+    """Validate a user-facing name as a single safe path component."""
+    if name is None:
+        raise ValueError(f"{kind} name must not be empty")
+
+    value = os.fspath(name) if isinstance(name, os.PathLike) else str(name)
+    if not value.strip():
+        raise ValueError(f"{kind} name must not be empty")
+    if "\x00" in value:
+        raise ValueError(f"{kind} name contains null byte, which is not permitted")
+    if value in {".", ".."}:
+        raise ValueError(f"{kind} name '{value}' is invalid")
+    if "/" in value or "\\" in value:
+        raise ValueError(f"{kind} name '{value}' must be a single path component")
+    if Path(value).is_absolute():
+        raise ValueError(f"{kind} name '{value}' must be relative")
+
+    return value
+
+
+def sanitize_snapshot_name(snapshot):
+    """Sanitize a snapshot name and ensure it remains a valid component."""
+    snapshot_str = (
+        os.fspath(snapshot) if isinstance(snapshot, os.PathLike) else str(snapshot)
+    )
+    snapshot_name = "".join(
+        char for char in snapshot_str if char.isalnum() or char in [".", "_"]
+    )
+    return validate_identifier(snapshot_name, "Snapshot")
+
+
 def make_path(*args):
-    """ use this to construct paths for future storage support """
-    # return Path(os.path.join(*args))
-    return Path(*args)
+    """use this to construct paths for future storage support"""
+    if not args:
+        return Path()
+
+    path = Path(args[0])
+    for component in args[1:]:
+        component_path = Path(component)
+        if component_path.is_absolute():
+            raise ValueError("Path components must be relative")
+        path = path / component_path
+
+    return path
 
 
 def get_path(*args):
-    """ use this to construct paths for future storage support """
-    # return Path(os.path.join(config.DEFAULT_PATH, *args))
-    return Path(config.DEFAULT_PATH, *args)
+    """use this to construct paths for future storage support"""
+    components = [validate_identifier(arg, "Path component") for arg in args]
+    return make_path(config.DEFAULT_PATH, *components)
 
 
 def set_path(path=None):
     """Set the base path for PyStore data
-    
+
     Parameters
     ----------
     path : str or Path, optional
@@ -130,20 +186,21 @@ def set_path(path=None):
     if path is None:
         path = Path.home() / "pystore"
     else:
+        path_str = str(path)
+        if "://" in path_str and "file://" not in path_str:
+            raise ValueError("PyStore currently only works with local file system")
+
         # Handle both string and Path objects
-        path = Path(path).expanduser().resolve()
-    
-    # Validate path
-    path_str = str(path)
-    if "://" in path_str and "file://" not in path_str:
-        raise ValueError("PyStore currently only works with local file system")
-    
+        path = Path(path).expanduser()
+        if not path.is_absolute():
+            path = path.absolute()
+
     # Create directory if it doesn't exist
     try:
         path.mkdir(parents=True, exist_ok=True)
-    except PermissionError:
-        raise PermissionError(f"Cannot create directory at {path}")
-    
+    except PermissionError as err:
+        raise PermissionError(f"Cannot create directory at {path}") from err
+
     # Store as string for compatibility
     config.DEFAULT_PATH = str(path)
     return path
@@ -156,28 +213,38 @@ def list_stores():
 
 
 def delete_store(store):
-    store_path = get_path(store)
+    store_name = validate_identifier(store, "Store")
+    store_path = get_path(store_name)
     if not path_exists(store_path):
-        raise ValueError(f"Store '{store}' does not exist")
+        raise ValueError(f"Store '{store_name}' does not exist")
     try:
         shutil.rmtree(store_path)
         return True
     except Exception as e:
-        raise RuntimeError(f"Failed to delete store '{store}': {str(e)}") from e
+        raise StorageError(f"Failed to delete store '{store_name}': {str(e)}") from e
 
 
 def delete_stores():
-    shutil.rmtree(get_path())
+    store_path = get_path()
+    if not path_exists(store_path):
+        raise ValueError(f"Store path '{store_path}' does not exist")
+    shutil.rmtree(store_path)
     return True
 
 
-def set_client(scheduler=None):
+def set_client(scheduler: Optional[Any] = None) -> Optional[Client]:
     if scheduler != config._SCHEDULER and config._CLIENT is not None:
         try:
             config._CLIENT.shutdown()
-            config._CLIENT = None
-        except Exception:
-            pass
+        except Exception as e:
+            # Distinguish between a genuinely failed shutdown and an
+            # already-closed client.  Either way, clear the reference to
+            # avoid holding a stale client object.
+            if "already closed" in str(e).lower() or "shutdown" in str(e).lower():
+                logger.debug(f"Dask client was already shut down: {e}")
+            else:
+                logger.warning(f"Failed to shut down existing Dask client: {e}")
+        config._CLIENT = None
 
     config._SCHEDULER = scheduler
     if scheduler is not None:
@@ -186,7 +253,7 @@ def set_client(scheduler=None):
     return config._CLIENT
 
 
-def get_client():
+def get_client() -> Optional[Client]:
     return config._CLIENT
 
 

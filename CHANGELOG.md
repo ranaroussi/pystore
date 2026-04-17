@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.0.2 (Unreleased)
+
+**Breaking Changes:**
+
+- `Collection.delete_snapshot()` now raises `SnapshotNotFoundError` when the snapshot does not exist, instead of silently returning `True`. Previously, calling `delete_snapshot('nonexistent')` was a no-op that returned `True`; it now raises. Downstream code that relied on the old silent-success behavior should catch `SnapshotNotFoundError` or check `snapshot in collection.snapshots` before deleting.
+
+**Deprecations & Behavior Changes:**
+
+- `Collection._item_path()` now emits a `DeprecationWarning`. Use `Collection.get_item_path()` instead.
+- `Collection.write_threaded()` now emits a `DeprecationWarning` — it is identical to `write()`. Any caller using `append(..., threaded=True)` will receive a deprecation warning on every call. Use `write()` directly or `AsyncCollection` for async writes.
+- `parallel_append()` (on `AsyncCollection`) now emits a `DeprecationWarning`. Use `ordered_append()` instead.
+- `delete_stores()` now raises `ValueError` (instead of `FileNotFoundError`) when the store path does not exist, consistent with `delete_store()`.
+
+**Internal:**
+
+- Removed `multitasking` dependency — `@multitasking.task` decorators have been replaced with synchronous execution. For true async writes, use `AsyncCollection`.
+
 ## 1.0.1 (2025-07-22)
 
 **Dependency Update**
@@ -71,6 +88,15 @@
 - Removed Python 2.7 and Python < 3.8 support
 - Removed Fastparquet support (PyArrow only)
 - Changed some internal APIs for better consistency
+- **DatetimeIndex auto-conversion to int64 removed**: Previously, writing a
+  DataFrame with a DatetimeIndex would automatically convert the index to
+  int64 (epoch nanoseconds) even when ``epochdate=False``, as long as the
+  index dtype string contained ``"datetime"``.  This silent conversion no
+  longer happens — parquet handles datetime natively, so the DatetimeIndex
+  is preserved on disk.  To get the old int64 behaviour, pass
+  ``epochdate=True`` explicitly.  Data written without ``epochdate=True``
+  will now round-trip with a ``DatetimeIndex`` instead of an integer index,
+  which may affect downstream code that expected int64 values.
 
 ## 0.1.24
 

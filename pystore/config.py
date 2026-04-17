@@ -18,13 +18,16 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os as os
-from .utils import Path
+import os
+from pathlib import Path
+from typing import Optional
 
-DEFAULT_PATH = os.environ.get("PYSTORE_PATH", Path.home() / "pystore")
+from dask.distributed import Client
+
+DEFAULT_PATH = str(os.environ.get("PYSTORE_PATH", Path.home() / "pystore"))
 DEFAULT_PARTITION_SIZE = 99e+6  # ~99MB
 PARTITION_SIZE = 99e+6  # ~99MB
 
 # dask distributed
 _SCHEDULER = None
-_CLIENT = None
+_CLIENT: Optional[Client] = None

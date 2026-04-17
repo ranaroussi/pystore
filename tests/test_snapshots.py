@@ -78,9 +78,9 @@ class TestSnapshots:
     
     def test_delete_nonexistent_snapshot(self, test_collection):
         """Test deleting a snapshot that doesn't exist"""
-        # Should not raise error (returns True)
-        result = test_collection.delete_snapshot('nonexistent')
-        assert result is True
+        # Should raise SnapshotNotFoundError
+        with pytest.raises(pystore.SnapshotNotFoundError):
+            test_collection.delete_snapshot('nonexistent')
     
     def test_delete_all_snapshots(self, test_collection, sample_data):
         """Test deleting all snapshots"""
@@ -124,6 +124,26 @@ class TestSnapshots:
         assert '/' not in snapshot_name
         assert '\\' not in snapshot_name
         assert '*' not in snapshot_name
+
+    def test_read_from_snapshot_after_live_item_deleted(
+        self, test_collection, sample_data
+    ):
+        """Snapshot reads should work even if the live item was deleted later."""
+        test_collection.write("item1", sample_data[:10])
+        test_collection.create_snapshot("stable_snapshot")
+        test_collection.delete_item("item1")
+
+        snapshot_item = test_collection.item("item1", snapshot="stable_snapshot")
+        pd.testing.assert_frame_equal(snapshot_item.to_pandas(), sample_data[:10])
+
+    def test_snapshot_name_that_sanitizes_to_empty_is_rejected(
+        self, test_collection, sample_data
+    ):
+        """Snapshot names must not collapse to the snapshots directory itself."""
+        test_collection.write("item1", sample_data)
+
+        with pytest.raises(ValueError):
+            test_collection.create_snapshot("////")
     
     def test_item_not_in_snapshot(self, test_collection, sample_data):
         """Test accessing an item that doesn't exist in a snapshot"""

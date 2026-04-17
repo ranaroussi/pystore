@@ -1,6 +1,6 @@
 # PyStore - Fast data store for Pandas timeseries data
 
-[![Python version](https://img.shields.io/badge/python-3.8+-blue.svg?style=flat)](https://pypi.python.org/pypi/pystore)
+[![Python version](https://img.shields.io/badge/python-3.9+-blue.svg?style=flat)](https://pypi.python.org/pypi/pystore)
 [![PyPI version](https://img.shields.io/pypi/v/pystore.svg?maxAge=60)](https://pypi.python.org/pypi/pystore)
 [![PyPI status](https://img.shields.io/pypi/status/pystore.svg?maxAge=60)](https://pypi.python.org/pypi/pystore)
 [![CodeFactor](https://www.codefactor.io/repository/github/ranaroussi/pystore/badge)](https://www.codefactor.io/repository/github/ranaroussi/pystore)
@@ -149,15 +149,15 @@ store.delete_collection("NASDAQ")
 
 ```python
 import asyncio
-from pystore import async_pystore
+from pystore import async_pystore, store
 
 async def async_example():
-    async with async_pystore.store("mydatastore") as store:
-        async with store.collection("NASDAQ") as collection:
-            # Async write
-            await collection.write("AAPL", df)
-            # Async read
-            df = await collection.item("AAPL").to_pandas()
+    async with async_pystore(store("mydatastore")) as async_store:
+        collection = async_store.collection("NASDAQ")
+        # Async write
+        await collection.write("AAPL", df)
+        # Async read
+        df = await collection.read("AAPL")
 
 asyncio.run(async_example())
 ```
@@ -167,11 +167,10 @@ asyncio.run(async_example())
 ```python
 from pystore import create_validator, ColumnExistsRule, RangeRule
 
-# Create a validator
-validator = create_validator([
-    ColumnExistsRule(["Open", "High", "Low", "Close"]),
-    RangeRule("Close", min_value=0),
-])
+# Create a validator and add rules
+validator = create_validator()
+validator.add_rule(ColumnExistsRule(["Open", "High", "Low", "Close"]))
+validator.add_rule(RangeRule("Close", min_val=0))
 
 # Apply validator to collection
 collection.set_validator(validator)
@@ -183,7 +182,7 @@ collection.set_validator(validator)
 from pystore import SchemaEvolution, EvolutionStrategy
 
 # Enable schema evolution
-evolution = collection.enable_schema_evolution(
+collection.enable_schema_evolution(
     "AAPL",
     strategy=EvolutionStrategy.FLEXIBLE,
 )
@@ -243,11 +242,10 @@ for chunk in read_in_chunks(collection, "large_item", chunk_size=50000):
 
 ```python
 # Column selection - read only what you need
-item = collection.item("data")
-df = item.to_pandas(columns=["price", "volume"])  # 4x faster for subset
+df = collection.item("data", columns=["price", "volume"]).to_pandas()  # 4x faster for subset
 
 # Filter at storage level
-df = item.to_pandas(filters=[("price", ">", 100)])  # 8x faster
+df = collection.item("data", filters=[("price", ">", 100)]).to_pandas()  # 8x faster
 ```
 
 ### Using Dask schedulers
@@ -279,14 +277,12 @@ A good practice it to create collections that may look something like this:
 
 ## Requirements
 
-- Python >= 3.8
+- Python >= 3.9
 - Pandas >= 2.0
-- Numpy >= 1.20
-- Dask >= 2023.1
-- PyArrow >= 10.0 (Parquet engine)
+- Numpy >= 1.24
+- Dask >= 2024.1
+- PyArrow >= 15.0 (Parquet engine)
 - [Snappy](http://google.github.io/snappy/) (Google's compression/decompression library)
-- multitasking
-- pytest-asyncio (for async testing)
 
 PyStore was tested to work on `*nix`-like systems, including macOS.
 

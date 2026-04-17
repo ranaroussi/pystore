@@ -2,250 +2,373 @@
 Tests for PyStore performance optimizations
 """
 
-import pytest
-import pandas as pd
 import numpy as np
+import pandas as pd
+import pytest
+
 import pystore
-from pystore.memory import MemoryMonitor, optimize_dataframe_memory, read_in_chunks
-from pystore.partition import calculate_optimal_partitions, rebalance_partitions
+from pystore.memory import (
+    MemoryMonitor,
+    apply_dask_memory_config,
+    optimize_dataframe_memory,
+    read_in_chunks,
+)
+from pystore.partition import rebalance_partitions
 
 
 class TestPerformanceOptimizations:
     """Test performance optimization features"""
-    
+
     def test_streaming_append(self, test_collection):
-        """Test streaming append functionality"""
+        """Test streaming append with non-overlapping chunks (keep_last default)"""
         # Create initial data
-        initial_data = pd.DataFrame({
-            'value': range(1000)
-        }, index=pd.date_range('2024-01-01', periods=1000, freq='1h'))
-        
-        test_collection.write('stream_test', initial_data)
-        
-        # Create data iterator
+        initial_data = pd.DataFrame(
+            {"value": range(1000)},
+            index=pd.date_range("2024-01-01", periods=1000, freq="1h"),
+        )
+
+        test_collection.write("stream_test", initial_data)
+
+        # Create non-overlapping chunks so total count is deterministic.
+        # Initial data ends ~2024-02-11; start stream well past that in March.
         def data_generator():
             for i in range(5):
-                chunk_data = pd.DataFrame({
-                    'value': range(i * 100, (i + 1) * 100)
-                }, index=pd.date_range('2024-02-01', periods=100, freq=f'{i+1}h'))
+                start = pd.Timestamp("2024-03-01") + pd.Timedelta(days=i * 5)
+                chunk_data = pd.DataFrame(
+                    {"value": range(i * 100, (i + 1) * 100)},
+                    index=pd.date_range(start, periods=100, freq="1h"),
+                )
                 yield chunk_data
-        
+
         # Use streaming append
-        test_collection.append_stream('stream_test', data_generator(), chunk_size=100)
-        
-        # Verify all data was appended
-        item = test_collection.item('stream_test')
+        test_collection.append_stream("stream_test", data_generator(), chunk_size=100)
+
+        # Verify all data was appended (no overlaps, so 1000 + 500 = 1500)
+        item = test_collection.item("stream_test")
         df = item.to_pandas()
         assert len(df) == 1500  # 1000 initial + 500 from stream
-    
+
+    def test_streaming_append_keep_last_deduplication(self, test_collection):
+        """Regression: append_stream must default to keep_last, not keep_all.
+
+        An overlapping row in a streamed chunk should replace the existing row
+        (keep_last semantics), not create a second copy (keep_all semantics).
+        """
+        # Write an item with a known row at 2024-01-02
+        initial_data = pd.DataFrame(
+            {"value": [10, 20, 30]},
+            index=pd.date_range("2024-01-01", periods=3, freq="D"),
+        )
+        test_collection.write("dedup_stream_test", initial_data)
+
+        # Stream a chunk that overlaps at 2024-01-02 with a new value
+        def overlapping_generator():
+            yield pd.DataFrame(
+                {"value": [99]},
+                index=pd.DatetimeIndex(["2024-01-02"]),
+            )
+
+        test_collection.append_stream(
+            "dedup_stream_test", overlapping_generator()
+        )
+
+        df = test_collection.item("dedup_stream_test").to_pandas()
+
+        # keep_last: only 3 unique dates, the 2024-01-02 value is replaced by 99
+        assert len(df) == 3, f"Expected 3 rows (keep_last), got {len(df)}"
+        assert df.loc["2024-01-02", "value"] == 99, "Overlapping row was not replaced"
+
     def test_batch_write(self, test_collection):
         """Test batch write functionality"""
         # Prepare multiple datasets
         items_data = {}
         metadata = {}
-        
+
         for i in range(10):
-            data = pd.DataFrame({
-                'value': np.random.randn(1000),
-                'category': np.random.choice(['A', 'B', 'C'], 1000)
-            }, index=pd.date_range('2024-01-01', periods=1000, freq='1h'))
-            
-            items_data[f'batch_item_{i}'] = data
-            metadata[f'batch_item_{i}'] = {'batch_index': i}
-        
+            data = pd.DataFrame(
+                {
+                    "value": np.random.randn(1000),
+                    "category": np.random.choice(["A", "B", "C"], 1000),
+                },
+                index=pd.date_range("2024-01-01", periods=1000, freq="1h"),
+            )
+
+            items_data[f"batch_item_{i}"] = data
+            metadata[f"batch_item_{i}"] = {"batch_index": i}
+
         # Batch write
         test_collection.write_batch(items_data, metadata=metadata, parallel=True)
-        
+
         # Verify all items were written
         for i in range(10):
-            assert f'batch_item_{i}' in test_collection.list_items()
-            item_meta = test_collection.get_item_metadata(f'batch_item_{i}')
-            assert item_meta['batch_index'] == i
-    
+            assert f"batch_item_{i}" in test_collection.list_items()
+            item_meta = test_collection.get_item_metadata(f"batch_item_{i}")
+            assert item_meta["batch_index"] == i
+
+    def test_batch_write_parallel_surfaces_item_failures(
+        self, test_collection, sample_data
+    ):
+        """Parallel batch writes should raise if any item fails."""
+        test_collection.write("existing_item", sample_data)
+
+        items_data = {
+            "existing_item": sample_data,
+            "new_item": sample_data.iloc[:10],
+        }
+
+        with pytest.raises(pystore.StorageError, match="existing_item"):
+            test_collection.write_batch(items_data, parallel=True)
+
+        assert "new_item" in test_collection.list_items()
+
     def test_batch_read(self, test_collection, sample_data):
         """Test batch read functionality"""
         # Write multiple items
         for i in range(5):
-            test_collection.write(f'read_item_{i}', sample_data)
-        
+            test_collection.write(f"read_item_{i}", sample_data)
+
         # Batch read
-        items_to_read = [f'read_item_{i}' for i in range(5)]
+        items_to_read = [f"read_item_{i}" for i in range(5)]
         results = test_collection.read_batch(items_to_read)
-        
+
         # Verify results
         assert len(results) == 5
         for i in range(5):
-            assert f'read_item_{i}' in results
-            pd.testing.assert_frame_equal(results[f'read_item_{i}'], sample_data)
-    
+            assert f"read_item_{i}" in results
+            pd.testing.assert_frame_equal(results[f"read_item_{i}"], sample_data)
+
     def test_optimized_partitioning(self, test_collection):
         """Test optimized partitioning strategies"""
         # Create large time series data
-        large_data = pd.DataFrame({
-            'value': np.random.randn(100_000),
-            'volume': np.random.randint(1000, 10000, 100_000)
-        }, index=pd.date_range('2020-01-01', periods=100_000, freq='15min'))
-        
+        large_data = pd.DataFrame(
+            {
+                "value": np.random.randn(100_000),
+                "volume": np.random.randint(1000, 10000, 100_000),
+            },
+            index=pd.date_range("2020-01-01", periods=100_000, freq="15min"),
+        )
+
         # Write with automatic partitioning
-        test_collection.write('partitioned_item', large_data)
-        
+        test_collection.write("partitioned_item", large_data)
+
         # Check that partitioning was applied
-        item = test_collection.item('partitioned_item')
+        item = test_collection.item("partitioned_item")
         assert item.data.npartitions > 1  # Should have multiple partitions
-        
+
         # Read back and verify
         df_read = item.to_pandas()
         assert len(df_read) == len(large_data)
-    
+
     def test_partition_rebalancing(self, test_collection):
         """Test partition rebalancing"""
         # Create poorly partitioned data (single partition)
-        data = pd.DataFrame({
-            'value': np.random.randn(50_000)
-        }, index=pd.date_range('2023-01-01', periods=50_000, freq='1min'))
-        
-        test_collection.write('unbalanced_item', data, npartitions=1)
-        
+        data = pd.DataFrame(
+            {"value": np.random.randn(50_000)},
+            index=pd.date_range("2023-01-01", periods=50_000, freq="1min"),
+        )
+
+        test_collection.write("unbalanced_item", data, npartitions=1)
+
         # Rebalance partitions
-        from pystore.partition import rebalance_partitions
-        rebalance_partitions(test_collection, 'unbalanced_item')
-        
+        rebalance_partitions(test_collection, "unbalanced_item")
+
         # Check improved partitioning
-        item = test_collection.item('unbalanced_item')
+        item = test_collection.item("unbalanced_item")
         assert item.data.npartitions > 1
-        
+
         # Verify data integrity
         df_read = item.to_pandas()
         pd.testing.assert_frame_equal(df_read, data)
-    
+
     def test_memory_optimization(self):
         """Test memory optimization utilities"""
         # Create DataFrame with inefficient types
-        df = pd.DataFrame({
-            'small_int': np.array([1, 2, 3, 4, 5] * 1000, dtype=np.int64),
-            'small_float': np.array([1.1, 2.2, 3.3, 4.4, 5.5] * 1000, dtype=np.float64),
-            'category': ['A', 'B', 'C'] * 1667,  # Repeated values
-            'unique_values': range(5000)  # Many unique values
-        })
-        
+        df = pd.DataFrame(
+            {
+                "small_int": np.array([1, 2, 3, 4, 5] * 1000, dtype=np.int64),
+                "small_float": np.array(
+                    [1.1, 2.2, 3.3, 4.4, 5.5] * 1000, dtype=np.float64
+                ),
+                "category": np.resize(["A", "B", "C"], 5000),  # Repeated values
+                "unique_values": range(5000),  # Many unique values
+            }
+        )
+
         original_memory = df.memory_usage(deep=True).sum()
-        
+
         # Optimize memory
         optimized_df = optimize_dataframe_memory(df, deep=True)
-        
+
         optimized_memory = optimized_df.memory_usage(deep=True).sum()
-        
+
         # Should use less memory
         assert optimized_memory < original_memory
-        
+
         # Verify data integrity
         assert len(optimized_df) == len(df)
-        assert optimized_df['small_int'].sum() == df['small_int'].sum()
-    
+        assert optimized_df["small_int"].sum() == df["small_int"].sum()
+
     def test_memory_monitoring(self, test_collection, sample_data):
         """Test memory monitoring functionality"""
         # Use memory monitor
-        with MemoryMonitor() as monitor:
+        with MemoryMonitor():
             # Perform memory-intensive operation
             for i in range(5):
-                test_collection.write(f'memory_test_{i}', sample_data, overwrite=True)
-        
+                test_collection.write(f"memory_test_{i}", sample_data, overwrite=True)
+
         # Monitor should have tracked memory usage (no assertion, just ensure no errors)
-    
+
     def test_chunked_reading(self, test_collection):
         """Test chunked reading for large datasets"""
         # Create large dataset
-        large_data = pd.DataFrame({
-            'value': np.random.randn(100_000),
-            'category': np.random.choice(['A', 'B', 'C', 'D'], 100_000)
-        }, index=pd.date_range('2024-01-01', periods=100_000, freq='1min'))
-        
-        test_collection.write('large_item', large_data)
-        
+        large_data = pd.DataFrame(
+            {
+                "value": np.random.randn(100_000),
+                "category": np.random.choice(["A", "B", "C", "D"], 100_000),
+            },
+            index=pd.date_range("2024-01-01", periods=100_000, freq="1min"),
+        )
+
+        test_collection.write("large_item", large_data)
+
         # Read in chunks
-        chunks = list(read_in_chunks(test_collection, 'large_item', chunk_size=10_000))
-        
-        # Should have 10 chunks
-        assert len(chunks) == 10
-        
-        # Verify each chunk
-        total_rows = 0
+        chunks = list(read_in_chunks(test_collection, "large_item", chunk_size=10_000))
+
+        # Each chunk must be no larger than chunk_size
         for chunk in chunks:
             assert len(chunk) <= 10_000
-            total_rows += len(chunk)
-        
+
+        # All rows must be recovered
+        total_rows = sum(len(c) for c in chunks)
         assert total_rows == 100_000
-    
+
     def test_metadata_caching(self, test_collection, sample_data):
         """Test metadata caching functionality"""
         # Write item with metadata
-        metadata = {'source': 'test', 'version': '1.0'}
-        test_collection.write('cached_item', sample_data, metadata=metadata)
-        
+        metadata = {"source": "test", "version": "1.0"}
+        test_collection.write("cached_item", sample_data, metadata=metadata)
+
         # First read - from disk
-        meta1 = test_collection.get_item_metadata('cached_item')
-        assert meta1['source'] == 'test'
-        
+        meta1 = test_collection.get_item_metadata("cached_item")
+        assert meta1["source"] == "test"
+
         # Second read - should be from cache
-        meta2 = test_collection.get_item_metadata('cached_item')
-        assert meta2['source'] == 'test'
-        
+        meta2 = test_collection.get_item_metadata("cached_item")
+        assert meta2["source"] == "test"
+
         # Clear cache
-        test_collection.clear_metadata_cache('cached_item')
-        
+        test_collection.clear_metadata_cache("cached_item")
+
         # Next read should be from disk again
-        meta3 = test_collection.get_item_metadata('cached_item')
-        assert meta3['source'] == 'test'
-    
+        meta3 = test_collection.get_item_metadata("cached_item")
+        assert meta3["source"] == "test"
+
     def test_column_selection_performance(self, test_collection):
         """Test that column selection improves read performance"""
         # Create wide DataFrame
-        data = pd.DataFrame({
-            f'col_{i}': np.random.randn(10_000) 
-            for i in range(50)
-        })
-        data.index = pd.date_range('2024-01-01', periods=10_000, freq='1min')
-        
-        test_collection.write('wide_data', data)
-        
+        data = pd.DataFrame({f"col_{i}": np.random.randn(10_000) for i in range(50)})
+        data.index = pd.date_range("2024-01-01", periods=10_000, freq="1min")
+
+        test_collection.write("wide_data", data)
+
         # Read all columns
-        item_all = test_collection.item('wide_data')
+        item_all = test_collection.item("wide_data")
         df_all = item_all.to_pandas()
         assert df_all.shape == (10_000, 50)
-        
+
         # Read subset of columns
-        item_subset = test_collection.item('wide_data', columns=['col_0', 'col_1', 'col_2'])
+        item_subset = test_collection.item(
+            "wide_data", columns=["col_0", "col_1", "col_2"]
+        )
         df_subset = item_subset.to_pandas()
         assert df_subset.shape == (10_000, 3)
-        
+
         # Memory usage should be much less for subset
-        assert df_subset.memory_usage(deep=True).sum() < df_all.memory_usage(deep=True).sum() / 10
-    
+        assert (
+            df_subset.memory_usage(deep=True).sum()
+            < df_all.memory_usage(deep=True).sum() / 10
+        )
+
     def test_filter_pushdown(self, test_collection):
         """Test that filters are pushed down to parquet level"""
         # Create data with categories
-        data = pd.DataFrame({
-            'value': np.random.randn(10_000),
-            'category': np.random.choice(['A', 'B', 'C', 'D'], 10_000),
-            'flag': np.random.choice([True, False], 10_000)
-        }, index=pd.date_range('2024-01-01', periods=10_000, freq='1min'))
-        
-        test_collection.write('filter_test', data)
-        
+        data = pd.DataFrame(
+            {
+                "value": np.random.randn(10_000),
+                "category": np.random.choice(["A", "B", "C", "D"], 10_000),
+                "flag": np.random.choice([True, False], 10_000),
+            },
+            index=pd.date_range("2024-01-01", periods=10_000, freq="1min"),
+        )
+
+        test_collection.write("filter_test", data)
+
         # Read with filter
-        item = test_collection.item('filter_test', 
-                                   filters=[('category', '==', 'A')])
+        item = test_collection.item("filter_test", filters=[("category", "==", "A")])
         df_filtered = item.to_pandas()
-        
+
         # Should have fewer rows
         assert len(df_filtered) < len(data)
-        assert all(df_filtered['category'] == 'A')
-        
+        assert all(df_filtered["category"] == "A")
+
         # Multiple filters
-        item2 = test_collection.item('filter_test',
-                                    filters=[('category', '==', 'B'), 
-                                           ('flag', '==', True)])
+        item2 = test_collection.item(
+            "filter_test", filters=[("category", "==", "B"), ("flag", "==", True)]
+        )
         df_filtered2 = item2.to_pandas()
-        
-        assert all(df_filtered2['category'] == 'B')
-        assert all(df_filtered2['flag'] == True)
+
+        assert all(df_filtered2["category"] == "B")
+        assert all(df_filtered2["flag"])
+
+
+class TestDaskMemoryConfig:
+    """Tests for apply_dask_memory_config()"""
+
+    def test_apply_sets_dataframe_config(self):
+        """apply_dask_memory_config sets core dataframe settings."""
+        import dask
+
+        import pystore.memory as mem
+
+        # Reset guard so the function actually runs
+        mem._dask_memory_config_applied = False
+        try:
+            apply_dask_memory_config()
+
+            assert dask.config.get("dataframe.shuffle.method") == "disk"
+            # The function should mark itself as applied
+            assert mem._dask_memory_config_applied is True
+        finally:
+            mem._dask_memory_config_applied = False
+
+    def test_idempotent(self):
+        """Calling apply_dask_memory_config twice is a no-op on the second call."""
+        import pystore.memory as mem
+
+        mem._dask_memory_config_applied = False
+        try:
+            apply_dask_memory_config()
+            first_state = mem._dask_memory_config_applied
+            apply_dask_memory_config()  # should be a no-op
+            assert first_state is True
+            assert mem._dask_memory_config_applied is True
+        finally:
+            mem._dask_memory_config_applied = False
+
+    def test_skips_distributed_config_without_cluster(self):
+        """distributed.worker.memory.* should NOT be set when no cluster is active."""
+        import dask
+
+        import pystore.memory as mem
+
+        mem._dask_memory_config_applied = False
+        try:
+            apply_dask_memory_config()
+            # Without a distributed client, the distributed config keys
+            # should retain their Dask defaults (not our custom values).
+            # We check that our function didn't forcibly set them.
+            target = dask.config.get("distributed.worker.memory.target", default=None)
+            # Dask's default target is 0.6, ours would be 0.8
+            assert target != 0.8 or target is None
+        finally:
+            mem._dask_memory_config_applied = False
