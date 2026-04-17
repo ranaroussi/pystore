@@ -142,7 +142,9 @@ def prepare_dataframe_for_storage(df: pd.DataFrame) -> tuple[pd.DataFrame, dict]
     for col in df.columns:
         if df[col].dtype == "object":
             # Check for nested structures
-            sample = df[col].dropna().iloc[0] if not df[col].dropna().empty else None
+            non_null = df[col].dropna()
+            sample = non_null.iloc[0] if not non_null.empty else None
+            del non_null  # free the temporary Series
 
             if sample is not None:
                 if isinstance(sample, (list, dict, set)):

@@ -131,7 +131,7 @@ class Collection:
                 return self._metadata_cache[item].copy()
 
         # Read metadata from disk
-        metadata: dict[str, Any] = utils.read_metadata(self._item_path(item))
+        metadata: dict[str, Any] = utils.read_metadata(self.get_item_path(item))
 
         # Update cache
         if use_cache:
@@ -153,7 +153,7 @@ class Collection:
 
     def index(self, item, last=False):
         data = dd.read_parquet(
-            self._item_path(item, as_string=True), columns="index", engine="pyarrow"
+            self.get_item_path(item, as_string=True), columns="index", engine="pyarrow"
         )
         if not last:
             return data.index.compute()
@@ -161,11 +161,11 @@ class Collection:
         return float(str(data.index).split("\nName")[0].split("\n")[-1].split(" ")[0])
 
     def delete_item(self, item, reload_items=False):
-        if not utils.path_exists(self._item_path(item)):
+        if not utils.path_exists(self.get_item_path(item)):
             raise ItemNotFoundError(f"Item '{item}' does not exist")
 
         try:
-            shutil.rmtree(self._item_path(item))
+            shutil.rmtree(self.get_item_path(item))
             self.items.discard(item)
             if reload_items:
                 self.items = self._list_items_threaded()
@@ -223,7 +223,7 @@ class Collection:
 
     def _validate_write_item(self, item, overwrite):
         """Validate item doesn't exist unless overwrite is True."""
-        if utils.path_exists(self._item_path(item)) and not overwrite:
+        if utils.path_exists(self.get_item_path(item)) and not overwrite:
             raise ItemExistsError(
                 f"Item '{item}' already exists. To overwrite, use overwrite=True. "
                 "Otherwise, use collection.append()"
@@ -257,9 +257,10 @@ class Collection:
         data, tz_info = TimezoneHandler.prepare_timezone_data(data, copy=False)
         metadata["_timezone_info"] = tz_info
 
-        # Convert datetime to int64 if needed
-        if epochdate or "datetime" in str(data.index.dtype):
-            data = utils.datetime_to_int64(data)
+        # NOTE: datetime → int64 conversion is deferred to AFTER partitioning
+        # so that _determine_partitioning can still detect time-series data
+        # and apply time-aligned divisions.  The conversion is applied in
+        # the write() method after partitioning.
 
         # Set index name if empty
         if data.index.name == "":
@@ -267,7 +268,7 @@ class Collection:
 
         return data, metadata
 
-    def _determine_partitioning(self, data, npartitions):
+    def _determine_partitioning(self, data, npartitions, *, was_datetime_index=False):
         """Determine optimal partitioning strategy for the data."""
         if npartitions is not None:
             # Use provided partitions
@@ -275,8 +276,12 @@ class Collection:
                 data = dd.from_pandas(data, npartitions=npartitions)
             return data, npartitions
 
-        # Use optimized partitioning
-        is_time_series = pd.api.types.is_datetime64_any_dtype(data.index)
+        # Use optimized partitioning — check both the current dtype and
+        # whether the index *was* datetime before epochdate conversion.
+        is_time_series = (
+            pd.api.types.is_datetime64_any_dtype(data.index)
+            or was_datetime_index
+        )
 
         if is_time_series and len(data) > 10000:
             # Use time-based partitioning for large time series
@@ -304,14 +309,14 @@ class Collection:
         """Write data to parquet and update metadata."""
         dd.to_parquet(
             data,
-            self._item_path(item, as_string=True),
+            self.get_item_path(item, as_string=True),
             overwrite=overwrite,
             compression="snappy",
             engine="pyarrow",
             **kwargs,
         )
 
-        utils.write_metadata(self._item_path(item), metadata)
+        utils.write_metadata(self.get_item_path(item), metadata)
 
         # update items
         self.items.add(item)
@@ -354,18 +359,30 @@ class Collection:
         self._validate_write_item(item, overwrite)
         data = self._prepare_write_data(data)
 
+        # Capture whether the index is datetime BEFORE transformations
+        # convert it to int64 — needed for time-based partitioning below.
+        _was_datetime_index = pd.api.types.is_datetime64_any_dtype(data.index)
+
         # Apply transformations
         data, metadata = self._apply_data_transformations(data, metadata, epochdate)
 
         # Determine partitioning
-        data, npartitions = self._determine_partitioning(data, npartitions)
+        data, npartitions = self._determine_partitioning(
+            data, npartitions, was_datetime_index=_was_datetime_index
+        )
+
+        # Convert datetime index to int64 *after* partitioning so that
+        # time-based partitioning can still see the original DatetimeIndex.
+        # Only convert when epochdate=True; parquet handles datetime natively.
+        if epochdate:
+            data = utils.datetime_to_int64(data)
 
         # Write to storage
         self._write_to_storage(item, data, metadata, overwrite, reload_items, **kwargs)
 
     def _validate_append_item(self, item):
         """Validate that item exists before appending."""
-        if not utils.path_exists(self._item_path(item)):
+        if not utils.path_exists(self.get_item_path(item)):
             raise ItemNotFoundError(
                 f"Item '{item}' does not exist. Use write() to create new items."
             )
@@ -375,15 +392,6 @@ class Collection:
         data = data.copy()
         if data.index.name == "":
             data.index.name = "index"
-        return data
-
-    def _convert_timezone_to_utc(self, data):
-        """Convert timezone-aware index to UTC for consistent storage."""
-        if hasattr(data.index, "tz") and data.index.tz is not None:
-            logger.debug(
-                f"Converting index timezone from {data.index.tz} to UTC for consistent append"
-            )
-            data.index = data.index.tz_convert("UTC")
         return data
 
     def _handle_schema_evolution(self, item, data, current_df):
@@ -405,35 +413,6 @@ class Collection:
             data = evolution.evolve_dataframe(data, target_schema)
             return evolved_current_df, data
         return None, data
-
-    def _combine_dataframes(self, current, data, evolved_current_df):
-        """Combine current and new dataframes, handling schema evolution and MultiIndex."""
-        if evolved_current_df is not None:
-            # Schema has evolved - we need to handle this specially
-            logger.info("Schema evolution detected")
-            current_dd = dd.from_pandas(evolved_current_df, npartitions=1)
-            new = dd.from_pandas(data, npartitions=1)
-            return dd.concat([current_dd, new], axis=0)
-        else:
-            # Regular append without evolution
-            return self._combine_with_multiindex_workaround(current, data)
-
-    def _combine_with_multiindex_workaround(self, current, data):
-        """Combine dataframes with workaround for Dask MultiIndex issue."""
-        try:
-            new = dd.from_pandas(data, npartitions=1)
-            return dd.concat([current.data, new], axis=0)
-        except NotImplementedError as e:
-            if "isna is not defined for MultiIndex" in str(e):
-                # Workaround for dask MultiIndex issue
-                data_for_dask = data.copy().reset_index()
-                current_pandas = current.to_pandas().reset_index()
-
-                new = dd.from_pandas(data_for_dask, npartitions=1)
-                current_dd = dd.from_pandas(current_pandas, npartitions=1)
-                return dd.concat([current_dd, new], axis=0)
-            else:
-                raise
 
     def _calculate_partitions(self, combined, npartitions):
         """Calculate optimal number of partitions based on memory usage."""
@@ -479,7 +458,7 @@ class Collection:
         try:
             multitasking.wait_for_tasks()
             self.delete_item(item=item, reload_items=False)
-            shutil.move(self._item_path(tmp_item), self._item_path(item))
+            shutil.move(self.get_item_path(tmp_item), self.get_item_path(item))
             self._list_items_threaded()
         except Exception as errn:
             raise ValueError(f"Error: {errn!r}") from errn
@@ -797,7 +776,7 @@ class Collection:
         logger.info(f"Starting streaming append for item '{item}'")
 
         # Validate item exists
-        if not utils.path_exists(self._item_path(item)):
+        if not utils.path_exists(self.get_item_path(item)):
             raise ItemNotFoundError(
                 f"Item '{item}' does not exist. Use write() to create new items."
             )

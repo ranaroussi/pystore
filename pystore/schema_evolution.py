@@ -224,22 +224,37 @@ class SchemaEvolution:
         raise AssertionError(f"Unsupported evolution strategy: {self.strategy}")
 
     def _is_compatible_type_change(self, old_dtype: str, new_dtype: str) -> bool:
-        """Check if a type change is compatible"""
-        compatible_changes = {
-            ("int32", "int64"),
-            ("int16", "int32"),
-            ("int16", "int64"),
-            ("float32", "float64"),
-            ("int32", "float64"),
-            ("int64", "float64"),
-        }
-        # Allow any type to object
-        compatible_changes.update(
-            {
-                (old_dtype, "object")
-                for old_dtype in ["int32", "int64", "float32", "float64", "bool"]
-            }
-        )
+        """Check if a type change is compatible (widening / lossless promotion)."""
+        # Signed integer widening chain: int8 → int16 → int32 → int64
+        signed_int_order = ["int8", "int16", "int32", "int64"]
+        # Unsigned integer widening chain: uint8 → uint16 → uint32 → uint64
+        unsigned_int_order = ["uint8", "uint16", "uint32", "uint64"]
+        # Float widening chain: float16 → float32 → float64
+        float_order = ["float16", "float32", "float64"]
+
+        compatible_changes: set[tuple[str, str]] = set()
+
+        # Same-family widening
+        for order in (signed_int_order, unsigned_int_order, float_order):
+            for i, old in enumerate(order):
+                for new in order[i + 1 :]:
+                    compatible_changes.add((old, new))
+
+        # Cross-family: signed int → float (lossless for in-range values)
+        for int_type in signed_int_order:
+            for float_type in float_order:
+                compatible_changes.add((int_type, float_type))
+
+        # Unsigned int → signed int (when the signed type is wider)
+        for ui in unsigned_int_order:
+            for si in signed_int_order:
+                # Only allow if the signed type has strictly more bits
+                if unsigned_int_order.index(ui) < signed_int_order.index(si):
+                    compatible_changes.add((ui, si))
+
+        # Any type → object (universal widening)
+        for dtype in signed_int_order + unsigned_int_order + float_order + ["bool"]:
+            compatible_changes.add((dtype, "object"))
 
         return (old_dtype, new_dtype) in compatible_changes
 

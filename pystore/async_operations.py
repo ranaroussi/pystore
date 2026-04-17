@@ -178,10 +178,11 @@ class AsyncCollection:
         logger.debug(f"Completed sequential append to '{item}'")
 
     def close(self):
-        """Close the executor"""
+        """Close the executor and event loop"""
         self.executor.shutdown(wait=True)
         if self._loop is not None and not self._loop.is_running():
             self._loop.close()
+            self._loop = None
 
 
 class AsyncStore:

@@ -194,15 +194,30 @@ def estimate_dataframe_memory(df: pd.DataFrame) -> float:
 
 
 def _optimize_integer_column(
-    df: pd.DataFrame, col: str, c_min: float, c_max: float
+    df: pd.DataFrame, col: str, c_min: float, c_max: float, *, unsigned: bool = False
 ) -> None:
-    """Optimize integer column by downcasting to smallest possible type."""
-    if c_min > np.iinfo(np.int8).min and c_max < np.iinfo(np.int8).max:
-        df[col] = df[col].astype(np.int8)
-    elif c_min > np.iinfo(np.int16).min and c_max < np.iinfo(np.int16).max:
-        df[col] = df[col].astype(np.int16)
-    elif c_min > np.iinfo(np.int32).min and c_max < np.iinfo(np.int32).max:
-        df[col] = df[col].astype(np.int32)
+    """Optimize integer column by downcasting to smallest possible type.
+
+    Parameters
+    ----------
+    unsigned : bool, default False
+        When True, downcast using unsigned integer types (uint8/16/32)
+        instead of signed ones.
+    """
+    if unsigned:
+        if c_min >= np.iinfo(np.uint8).min and c_max <= np.iinfo(np.uint8).max:
+            df[col] = df[col].astype(np.uint8)
+        elif c_min >= np.iinfo(np.uint16).min and c_max <= np.iinfo(np.uint16).max:
+            df[col] = df[col].astype(np.uint16)
+        elif c_min >= np.iinfo(np.uint32).min and c_max <= np.iinfo(np.uint32).max:
+            df[col] = df[col].astype(np.uint32)
+    else:
+        if c_min > np.iinfo(np.int8).min and c_max < np.iinfo(np.int8).max:
+            df[col] = df[col].astype(np.int8)
+        elif c_min > np.iinfo(np.int16).min and c_max < np.iinfo(np.int16).max:
+            df[col] = df[col].astype(np.int16)
+        elif c_min > np.iinfo(np.int32).min and c_max < np.iinfo(np.int32).max:
+            df[col] = df[col].astype(np.int32)
 
 
 def _optimize_float_column(
@@ -233,9 +248,12 @@ def _optimize_numeric_column(
     c_min = df[col].min()
     c_max = df[col].max()
 
-    # Integer optimization
+    # Integer optimization (signed)
     if str(col_type)[:3] == "int":
         _optimize_integer_column(df, col, c_min, c_max)
+    # Unsigned integer optimization
+    elif str(col_type)[:4] == "uint":
+        _optimize_integer_column(df, col, c_min, c_max, unsigned=True)
     # Float optimization
     elif str(col_type)[:5] == "float":
         _optimize_float_column(df, col, c_min, c_max, deep)

@@ -171,7 +171,7 @@ class Transaction:
         """Internal rollback logic"""
         # Restore backups
         for item, backup_path in self.backups.items():
-            item_path = self.collection._item_path(item)
+            item_path = self.collection.get_item_path(item)
             if utils.path_exists(item_path):
                 shutil.rmtree(item_path)
             shutil.move(backup_path, item_path)
