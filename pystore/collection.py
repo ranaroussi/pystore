@@ -103,7 +103,6 @@ class Collection:
             Previously decorated with ``@multitasking.task`` which made
             the method fire-and-forget.  Now runs synchronously and
             returns the updated items set.
-        synchronously and returns the updated items set.
 
         The ``_items_lock`` is held during the reassignment so that
         concurrent ``add``/``discard`` calls inside the lock are not
@@ -188,6 +187,8 @@ class Collection:
         # Compute the last index value directly instead of parsing the
         # string representation, which is fragile across Dask versions.
         idx = data.index.compute()
+        if len(idx) == 0:
+            return None
         last_val = idx[-1]
         # Return as float for backwards compatibility with numeric indices
         try:
@@ -514,7 +515,7 @@ class Collection:
             shutil.move(self.get_item_path(tmp_item), self.get_item_path(item))
             self._list_items_threaded()
         except Exception as errn:
-            raise StorageError(f"Failed to replace item '{item}': {errn!r}") from errn
+            raise StorageError(f"Failed to replace item '{item}': {errn}") from errn
 
     def append(
         self,

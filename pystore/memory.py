@@ -41,7 +41,7 @@ try:
     _HAS_PSUTIL = True
 except ImportError:  # pragma: no cover
     _HAS_PSUTIL = False
-    psutil = None
+    psutil = None  # type: ignore[assignment]
 
 # Memory thresholds
 MEMORY_WARNING_THRESHOLD = 0.8  # Warn when memory usage exceeds 80%
