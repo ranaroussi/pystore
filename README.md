@@ -285,7 +285,6 @@ A good practice it to create collections that may look something like this:
 - Dask >= 2023.1
 - PyArrow >= 10.0 (Parquet engine)
 - [Snappy](http://google.github.io/snappy/) (Google's compression/decompression library)
-- multitasking
 - pytest-asyncio (for async testing)
 
 PyStore was tested to work on `*nix`-like systems, including macOS.

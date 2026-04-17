@@ -94,6 +94,13 @@ class Collection:
 
     def _item_path(self, item, as_string=False):
         """Deprecated: Use get_item_path instead"""
+        import warnings
+
+        warnings.warn(
+            "_item_path is deprecated, use get_item_path instead",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         return self.get_item_path(item, as_string)
 
     def _list_items_threaded(self, **kwargs):
@@ -264,6 +271,14 @@ class Collection:
             equivalent to :meth:`write`.  For true asynchronous writes,
             use the ``AsyncCollection`` wrapper instead.
         """
+        import warnings
+
+        warnings.warn(
+            "write_threaded is deprecated — it is now identical to write(). "
+            "Use write() directly or AsyncCollection for async writes.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         return self.write(*args, **kwargs)
 
     def _validate_write_item(self, item, overwrite):

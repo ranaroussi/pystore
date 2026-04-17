@@ -29,7 +29,6 @@ from typing import Any, Optional, cast
 
 import pandas as pd
 
-from . import utils
 from .exceptions import SchemaError
 from .logger import get_logger
 
@@ -436,52 +435,6 @@ class SchemaEvolution:
             for v, schema_data in data["schemas"].items()
         }
         return evolution
-
-
-# Integration functions
-
-
-def add_schema_evolution_to_collection(collection_class):
-    """Add schema evolution support to Collection class"""
-
-    def get_item_evolution(self, item: str) -> Optional[SchemaEvolution]:
-        """Get schema evolution for an item"""
-        metadata_path = utils.make_path(self.datastore, self.collection, item)
-        metadata = utils.read_metadata(metadata_path)
-
-        if "_schema_evolution" in metadata:
-            return SchemaEvolution.from_dict(metadata["_schema_evolution"])
-
-        return None
-
-    def set_item_evolution(self, item: str, evolution: SchemaEvolution):
-        """Set schema evolution for an item"""
-        metadata_path = utils.make_path(self.datastore, self.collection, item)
-        metadata = utils.read_metadata(metadata_path)
-        metadata["_schema_evolution"] = evolution.to_dict()
-        utils.write_metadata(metadata_path, metadata)
-
-    def enable_schema_evolution(
-        self, item: str, strategy: EvolutionStrategy = EvolutionStrategy.COMPATIBLE
-    ):
-        """Enable schema evolution for an item"""
-        evolution = SchemaEvolution(strategy)
-
-        # Register current schema
-        current_df = self.item(item).to_pandas()
-        evolution.register_schema(current_df)
-
-        self.set_item_evolution(item, evolution)
-        logger.info(
-            f"Enabled schema evolution for item '{item}' with strategy '{strategy.value}'"
-        )
-
-    # Add methods to collection class
-    collection_class.get_item_evolution = get_item_evolution
-    collection_class.set_item_evolution = set_item_evolution
-    collection_class.enable_schema_evolution = enable_schema_evolution
-
-    return collection_class
 
 
 # Example migration functions

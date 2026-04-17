@@ -91,14 +91,20 @@ class TestAsyncOperations:
         df_b = pd.DataFrame({'value': [4]}, index=[3])
 
         # Use the alias — must behave identically to ordered_append
-        await async_coll.parallel_append('alias_item', [df_a, df_b])
+        import warnings
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            await async_coll.parallel_append('alias_item', [df_a, df_b])
 
         result = self.collection.item('alias_item').to_pandas()
         expected = pd.DataFrame({'value': [1, 2, 3, 4]})
         pd.testing.assert_frame_equal(result.reset_index(drop=True), expected)
 
-        # Verify that parallel_append IS ordered_append (same method object)
-        assert AsyncCollection.parallel_append is AsyncCollection.ordered_append
+        # Verify that parallel_append delegates to ordered_append (emits
+        # DeprecationWarning but produces the same result).
+        with pytest.warns(DeprecationWarning, match="parallel_append"):
+            await async_coll.parallel_append('alias_item', [df_a, df_b])
 
 
 class TestTransactions:

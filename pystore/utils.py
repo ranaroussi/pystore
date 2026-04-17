@@ -221,7 +221,10 @@ def delete_store(store):
 
 
 def delete_stores():
-    shutil.rmtree(get_path())
+    store_path = get_path()
+    if not path_exists(store_path):
+        raise ValueError(f"Store path '{store_path}' does not exist")
+    shutil.rmtree(store_path)
     return True
 
 

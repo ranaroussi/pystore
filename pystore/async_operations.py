@@ -207,7 +207,22 @@ class AsyncCollection:
     # Backward-compatible alias — the method was renamed from
     # ``parallel_append`` to ``ordered_append`` to reflect the sequential
     # behaviour introduced during the modernization effort.
-    parallel_append = ordered_append
+    def parallel_append(self, *args, **kwargs):
+        """Deprecated: use ordered_append instead.
+
+        The old name was misleading because the method has always been
+        sequential; it was renamed to ``ordered_append`` to avoid
+        confusion.
+        """
+        import warnings
+
+        warnings.warn(
+            "parallel_append is deprecated — use ordered_append instead. "
+            "The old name was misleading because the method is sequential.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.ordered_append(*args, **kwargs)
 
     def close(self):
         """Close the executor and event loop.
@@ -281,42 +296,3 @@ def async_pystore(store_or_collection: Any) -> AsyncContextManager:
             await async_collection.write('item', df)
     """
     return AsyncContextManager(store_or_collection)
-
-
-# Example usage functions
-async def example_concurrent_writes():
-    """Example of concurrent writes"""
-    import pystore
-
-    store = pystore.store('mystore')
-    collection = store.collection('mycollection')
-
-    async with async_pystore(collection) as async_coll:
-        # Create sample data
-        data = {
-            f'item_{i}': pd.DataFrame({
-                'value': range(100),
-                'timestamp': pd.date_range('2023-01-01', periods=100)
-            })
-            for i in range(5)
-        }
-
-        # Write all items concurrently
-        await async_coll.write_batch(data)
-
-
-async def example_concurrent_reads():
-    """Example of concurrent reads"""
-    import pystore
-
-    store = pystore.store('mystore')
-    collection = store.collection('mycollection')
-
-    async with async_pystore(collection) as async_coll:
-        # Read multiple items concurrently
-        items = [f'item_{i}' for i in range(5)]
-        results = await async_coll.read_batch(items)
-
-        for item, df in results.items():
-            if df is not None:
-                print(f"{item}: {len(df)} rows")

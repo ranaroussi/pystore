@@ -52,9 +52,12 @@ from .utils import (
 )
 from .validation import (
     ColumnExistsRule,
+    CustomRule,
+    DataTypeRule,
     DataValidator,
     NoNullRule,
     RangeRule,
+    UniqueRule,
     ValidationRule,
     create_financial_validator,
     create_timeseries_validator,
@@ -104,8 +107,11 @@ __all__ = [
     "ValidationRule",
     "DataValidator",
     "ColumnExistsRule",
+    "CustomRule",
+    "DataTypeRule",
     "RangeRule",
     "NoNullRule",
+    "UniqueRule",
     "SchemaEvolution",
     "EvolutionStrategy",
 ]
