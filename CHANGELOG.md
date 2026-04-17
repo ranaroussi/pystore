@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- **CLO-137: Pin dependency versions — pystore** ([#102](https://github.com/ranaroussi/pystore/pull/102))
+
+
 ## 1.0.2 (Unreleased)
 
 **Breaking Changes:**
