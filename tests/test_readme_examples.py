@@ -16,8 +16,10 @@ from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pandas as pd
+import pytest
 
 import pystore
+from pystore import async_pystore, store
 
 
 class TestReadmeExamples:
@@ -298,3 +300,34 @@ class TestReadmeExamples:
         # Check that user metadata is preserved (system may add additional metadata)
         for key, value in metadata.items():
             assert item.metadata.get(key) == value
+
+    @pytest.mark.asyncio
+    async def test_async_store_readme_pattern(self):
+        """Test the exact async_pystore(store(...)) pattern shown in README.
+
+        The README shows:
+            async with async_pystore(store("mydatastore")) as async_store:
+                collection = async_store.collection("NASDAQ")
+                await collection.write("AAPL", df)
+                df = await collection.read("AAPL")
+
+        This test verifies that wrapping a *store* (not a collection)
+        through async_pystore → AsyncContextManager → AsyncStore works
+        end-to-end, including collection access, async write, and async
+        read.
+        """
+        df = pd.DataFrame({
+            "Close": np.random.randn(100) + 150,
+            "Volume": np.random.randint(1000000, 10000000, 100),
+        }, index=pd.date_range("2023-01-01", periods=100))
+
+        # Follow the exact README pattern
+        async with async_pystore(store("mydatastore")) as async_store:
+            collection = async_store.collection("NASDAQ")
+            # Async write
+            await collection.write("AAPL", df)
+            # Async read
+            result = await collection.read("AAPL")
+
+        # Verify the data round-tripped correctly
+        pd.testing.assert_frame_equal(result, df)
