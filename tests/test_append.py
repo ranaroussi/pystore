@@ -223,11 +223,12 @@ class TestAppend:
         """Regression: threaded append should preserve the complete dataset."""
         test_collection.write('test_item', sample_data.iloc[:50])
 
-        test_collection.append(
-            'test_item',
-            sample_data.iloc[50:],
-            threaded=True,
-        )
+        with pytest.warns(DeprecationWarning, match="write_threaded is deprecated"):
+            test_collection.append(
+                'test_item',
+                sample_data.iloc[50:],
+                threaded=True,
+            )
 
         df_read = test_collection.item('test_item').to_pandas()
         pd.testing.assert_frame_equal(df_read, sample_data)
