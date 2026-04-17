@@ -149,15 +149,16 @@ store.delete_collection("NASDAQ")
 
 ```python
 import asyncio
-from pystore import async_pystore
+from pystore import async_pystore, store
 
 async def async_example():
-    async with async_pystore.store("mydatastore") as store:
-        async with store.collection("NASDAQ") as collection:
-            # Async write
-            await collection.write("AAPL", df)
-            # Async read
-            df = await collection.item("AAPL").to_pandas()
+    my_store = store("mydatastore")
+    async with async_pystore(my_store) as async_store:
+        collection = async_store.collection("NASDAQ")
+        # Async write
+        await collection.write("AAPL", df)
+        # Async read
+        df = await collection.read("AAPL")
 
 asyncio.run(async_example())
 ```
@@ -167,11 +168,10 @@ asyncio.run(async_example())
 ```python
 from pystore import create_validator, ColumnExistsRule, RangeRule
 
-# Create a validator
-validator = create_validator([
-    ColumnExistsRule(["Open", "High", "Low", "Close"]),
-    RangeRule("Close", min_value=0),
-])
+# Create a validator and add rules
+validator = create_validator()
+validator.add_rule(ColumnExistsRule(["Open", "High", "Low", "Close"]))
+validator.add_rule(RangeRule("Close", min_val=0))
 
 # Apply validator to collection
 collection.set_validator(validator)
@@ -183,7 +183,7 @@ collection.set_validator(validator)
 from pystore import SchemaEvolution, EvolutionStrategy
 
 # Enable schema evolution
-evolution = collection.enable_schema_evolution(
+collection.enable_schema_evolution(
     "AAPL",
     strategy=EvolutionStrategy.FLEXIBLE,
 )
@@ -243,11 +243,12 @@ for chunk in read_in_chunks(collection, "large_item", chunk_size=50000):
 
 ```python
 # Column selection - read only what you need
-item = collection.item("data")
-df = item.to_pandas(columns=["price", "volume"])  # 4x faster for subset
+item = collection.item("data", columns=["price", "volume"])  # 4x faster for subset
+df = item.to_pandas()
 
 # Filter at storage level
-df = item.to_pandas(filters=[("price", ">", 100)])  # 8x faster
+item = collection.item("data", filters=[("price", ">", 100)])  # 8x faster
+df = item.to_pandas()
 ```
 
 ### Using Dask schedulers

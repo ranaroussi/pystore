@@ -36,12 +36,12 @@ from .logger import get_logger
 logger = get_logger(__name__)
 
 try:
-    import psutil
+    import psutil as _psutil
 
     _HAS_PSUTIL = True
 except ImportError:  # pragma: no cover
     _HAS_PSUTIL = False
-    psutil: Any = None
+    _psutil = None
 
 # Memory thresholds
 MEMORY_WARNING_THRESHOLD = 0.8  # Warn when memory usage exceeds 80%
@@ -56,8 +56,8 @@ def get_memory_info() -> dict:
     if not _HAS_PSUTIL:
         return {}
 
-    memory = psutil.virtual_memory()
-    process = psutil.Process()
+    memory = _psutil.virtual_memory()
+    process = _psutil.Process()
     process_memory = process.memory_info()
 
     return {
