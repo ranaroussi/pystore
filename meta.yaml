@@ -22,8 +22,10 @@ requirements:
     - pip
     - python >=3.9
     - cloudpickle ==3.1.1
-    - dask ==2024.8.0
-    - distributed ==2024.8.0
+    - dask ==2024.8.0  # [py<310]
+    - dask ==2025.7.0  # [py>=310]
+    - distributed ==2024.8.0  # [py<310]
+    - distributed ==2025.7.0  # [py>=310]
     - fsspec ==2025.7.0
     - numpy ==1.26.4
     - pandas ==2.3.1
@@ -33,16 +35,18 @@ requirements:
     - toolz ==1.0.0
   run:
     - python >=3.9
-    - cloudpickle ==3.1.1
-    - dask ==2024.8.0
-    - distributed ==2024.8.0
-    - fsspec ==2025.7.0
-    - numpy ==1.26.4
-    - pandas ==2.3.1
-    - partd ==1.4.2
-    - pyarrow ==21.0.0
-    - python-snappy ==0.7.3
-    - toolz ==1.0.0
+    - cloudpickle 3.1.*
+    - dask 2024.8.*  # [py<310]
+    - dask 2025.7.*  # [py>=310]
+    - distributed 2024.8.*  # [py<310]
+    - distributed 2025.7.*  # [py>=310]
+    - fsspec 2025.7.*
+    - numpy 1.26.*
+    - pandas 2.3.*
+    - partd 1.4.*
+    - pyarrow 21.0.*
+    - python-snappy 0.7.*
+    - toolz 1.0.*
 
 test:
   imports:
