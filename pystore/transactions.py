@@ -207,9 +207,12 @@ class Transaction:
         ``_rollback_internal`` failed to restore them), those backup
         directories are moved to the collection directory before the temp
         directory is removed, so they remain available for manual recovery.
+        If the move itself fails, the temp directory is **kept** on disk so
+        that the user can still recover the data manually.
         """
         if self.temp_dir and os.path.exists(self.temp_dir):
             # Move any unrestored backups out of the temp dir before cleanup
+            preservation_failed = False
             try:
                 for entry in os.listdir(self.temp_dir):
                     entry_path = os.path.join(self.temp_dir, entry)
@@ -226,9 +229,40 @@ class Transaction:
                         )
             except Exception as e:
                 logger.error(f"Failed to preserve unrestored backups during cleanup: {e}")
+                preservation_failed = True
 
-            shutil.rmtree(self.temp_dir)
-            logger.debug(f"Cleaned up transaction directory: {self.temp_dir}")
+            # Only remove the temp dir if no backup directories remain inside.
+            # If preservation failed (or we couldn't verify), leave the dir
+            # on disk so the user can still recover data manually.
+            #
+            # Both conditions are checked independently:
+            # - ``remaining_backups`` catches the case where preservation
+            #   succeeded *partially* (some backups were moved out, others
+            #   were not — e.g. the exception occurred mid-loop).
+            # - ``preservation_failed`` catches the case where the
+            #   preservation loop raised before moving any backups *and*
+            #   the listdir below also fails, so we cannot know whether
+            #   backups remain.  Erring on the side of caution keeps the
+            #   temp dir alive for manual recovery.
+            try:
+                remaining_backups = any(
+                    e.startswith("backup_")
+                    and os.path.isdir(os.path.join(self.temp_dir, e))
+                    for e in os.listdir(self.temp_dir)
+                )
+            except OSError:
+                # If listdir fails (e.g. PermissionError after a failed
+                # preservation), assume backups remain to avoid data loss.
+                remaining_backups = True
+            if remaining_backups or preservation_failed:
+                logger.warning(
+                    f"Keeping transaction directory '{self.temp_dir}' "
+                    f"because unrestored backups remain on disk. "
+                    f"Remove it manually after recovering the data."
+                )
+            else:
+                shutil.rmtree(self.temp_dir)
+                logger.debug(f"Cleaned up transaction directory: {self.temp_dir}")
 
 
 class BatchTransaction:

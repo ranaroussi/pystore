@@ -335,15 +335,27 @@ class DataTypeHandler:
                 df[col] = df[col].astype(str)
 
             elif isinstance(dtype, pd.IntervalDtype):
-                # Split interval into left/right columns
+                # Split interval into left/right columns.
+                # Guard against column-name collisions: if the derived names
+                # already exist in the DataFrame, raise rather than silently
+                # overwrite the user's data.
+                left_col = f"{col}_left"
+                right_col = f"{col}_right"
+                if left_col in df.columns or right_col in df.columns:
+                    raise ValidationError(
+                        f"Cannot serialize Interval column '{col}': "
+                        f"derived column names '{left_col}'/'{right_col}' "
+                        f"already exist in the DataFrame. Rename the existing "
+                        f"columns to avoid the collision."
+                    )
                 type_info[col] = {
                     "type": "interval",
                     "closed": getattr(dtype, "closed", "right"),
                 }
-                df[f"{col}_left"] = df[col].apply(
+                df[left_col] = df[col].apply(
                     lambda x: x.left if pd.notna(x) else np.nan
                 )
-                df[f"{col}_right"] = df[col].apply(
+                df[right_col] = df[col].apply(
                     lambda x: x.right if pd.notna(x) else np.nan
                 )
                 df = df.drop(columns=[col])

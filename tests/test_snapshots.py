@@ -78,9 +78,9 @@ class TestSnapshots:
     
     def test_delete_nonexistent_snapshot(self, test_collection):
         """Test deleting a snapshot that doesn't exist"""
-        # Should not raise error (returns True)
-        result = test_collection.delete_snapshot('nonexistent')
-        assert result is True
+        # Should raise SnapshotNotFoundError
+        with pytest.raises(pystore.SnapshotNotFoundError):
+            test_collection.delete_snapshot('nonexistent')
     
     def test_delete_all_snapshots(self, test_collection, sample_data):
         """Test deleting all snapshots"""

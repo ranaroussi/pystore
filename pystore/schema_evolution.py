@@ -216,11 +216,12 @@ class SchemaEvolution:
                         return False
             return True
 
-        if self.strategy == EvolutionStrategy.FLEXIBLE:
+        elif self.strategy == EvolutionStrategy.FLEXIBLE:
             # Allow most changes
             return True
 
-        raise AssertionError(f"Unsupported evolution strategy: {self.strategy}")
+        else:
+            raise ValueError(f"Unsupported evolution strategy: {self.strategy}")
 
     def _is_compatible_type_change(self, old_dtype: str, new_dtype: str) -> bool:
         """Check if a type change is compatible (widening / lossless promotion)."""

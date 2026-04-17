@@ -46,6 +46,7 @@ class AsyncCollection:
     ):
         self.collection = collection
         self.executor = executor or concurrent.futures.ThreadPoolExecutor(max_workers=4)
+        self._closed = False
         self._loop: Optional[asyncio.AbstractEventLoop] = None
         self._loop_thread_id: Optional[int] = None  # Track which thread owns the loop
 
@@ -229,7 +230,7 @@ class AsyncCollection:
 
         Safe to call multiple times — subsequent calls are no-ops.
         """
-        if getattr(self, "_closed", False):
+        if self._closed:
             return
         self._closed = True
         self.executor.shutdown(wait=True)
@@ -244,6 +245,7 @@ class AsyncStore:
     def __init__(self, store, executor: Optional[concurrent.futures.Executor] = None):
         self.store = store
         self.executor = executor or concurrent.futures.ThreadPoolExecutor(max_workers=4)
+        self._closed = False
 
     def collection(self, name: str) -> AsyncCollection:
         """Get async collection wrapper"""
@@ -257,7 +259,13 @@ class AsyncStore:
         return cast(set[Any], result)
 
     def close(self):
-        """Close the executor"""
+        """Close the executor.
+
+        Safe to call multiple times — subsequent calls are no-ops.
+        """
+        if self._closed:
+            return
+        self._closed = True
         self.executor.shutdown(wait=True)
 
 
@@ -280,7 +288,12 @@ class AsyncContextManager:
         return self.async_obj
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
-        self.executor.shutdown(wait=True)
+        # Close the async wrapper — this shuts down the shared executor
+        # and (for AsyncCollection) the event loop.  Do not call
+        # self.executor.shutdown() again here; the executor is shared
+        # and close() already shuts it down.
+        if self.async_obj is not None and hasattr(self.async_obj, "close"):
+            self.async_obj.close()
 
 
 def async_pystore(store_or_collection: Any) -> AsyncContextManager:

@@ -1,6 +1,6 @@
 # PyStore - Fast data store for Pandas timeseries data
 
-[![Python version](https://img.shields.io/badge/python-3.8+-blue.svg?style=flat)](https://pypi.python.org/pypi/pystore)
+[![Python version](https://img.shields.io/badge/python-3.9+-blue.svg?style=flat)](https://pypi.python.org/pypi/pystore)
 [![PyPI version](https://img.shields.io/pypi/v/pystore.svg?maxAge=60)](https://pypi.python.org/pypi/pystore)
 [![PyPI status](https://img.shields.io/pypi/status/pystore.svg?maxAge=60)](https://pypi.python.org/pypi/pystore)
 [![CodeFactor](https://www.codefactor.io/repository/github/ranaroussi/pystore/badge)](https://www.codefactor.io/repository/github/ranaroussi/pystore)
@@ -279,13 +279,12 @@ A good practice it to create collections that may look something like this:
 
 ## Requirements
 
-- Python >= 3.8
+- Python >= 3.9
 - Pandas >= 2.0
-- Numpy >= 1.20
-- Dask >= 2023.1
-- PyArrow >= 10.0 (Parquet engine)
+- Numpy >= 1.24
+- Dask >= 2024.1
+- PyArrow >= 15.0 (Parquet engine)
 - [Snappy](http://google.github.io/snappy/) (Google's compression/decompression library)
-- pytest-asyncio (for async testing)
 
 PyStore was tested to work on `*nix`-like systems, including macOS.
 

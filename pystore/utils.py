@@ -31,6 +31,10 @@ from dask import dataframe as dd
 from dask.distributed import Client
 
 from . import config
+from .exceptions import StorageError
+from .logger import get_logger
+
+logger = get_logger(__name__)
 
 
 def read_csv(urlpath, *args, **kwargs):
@@ -217,7 +221,7 @@ def delete_store(store):
         shutil.rmtree(store_path)
         return True
     except Exception as e:
-        raise RuntimeError(f"Failed to delete store '{store_name}': {str(e)}") from e
+        raise StorageError(f"Failed to delete store '{store_name}': {str(e)}") from e
 
 
 def delete_stores():
@@ -233,8 +237,9 @@ def set_client(scheduler: Optional[Any] = None) -> Optional[Client]:
         try:
             config._CLIENT.shutdown()
             config._CLIENT = None
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"Failed to shut down existing Dask client: {e}")
+            config._CLIENT = None
 
     config._SCHEDULER = scheduler
     if scheduler is not None:

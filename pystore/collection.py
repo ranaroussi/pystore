@@ -41,6 +41,7 @@ from .exceptions import (
     DataIntegrityError,
     ItemExistsError,
     ItemNotFoundError,
+    SnapshotNotFoundError,
     StorageError,
     ValidationError,
 )
@@ -707,8 +708,9 @@ class Collection:
     def delete_snapshot(self, snapshot):
         snapshot_name = utils.validate_identifier(snapshot, "Snapshot")
         if snapshot_name not in self.snapshots:
-            # raise ValueError("Snapshot `%s` doesn't exist" % snapshot)
-            return True
+            raise SnapshotNotFoundError(
+                f"Snapshot '{snapshot_name}' doesn't exist"
+            )
 
         shutil.rmtree(
             utils.make_path(

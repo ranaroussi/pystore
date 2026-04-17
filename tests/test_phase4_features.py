@@ -106,6 +106,72 @@ class TestAsyncOperations:
         with pytest.warns(DeprecationWarning, match="parallel_append"):
             await async_coll.parallel_append('alias_item', [df_a, df_b])
 
+    @pytest.mark.asyncio
+    async def test_async_collection_close_idempotent(self):
+        """Calling close() multiple times on AsyncCollection should be a no-op."""
+        from pystore.async_operations import AsyncCollection
+
+        async_coll = AsyncCollection(self.collection)
+        # First close — should succeed
+        async_coll.close()
+        assert async_coll._closed is True
+
+        # Second close — should be a no-op (no exception raised)
+        async_coll.close()
+        assert async_coll._closed is True
+
+    @pytest.mark.asyncio
+    async def test_async_store_close_idempotent(self):
+        """Calling close() multiple times on AsyncStore should be a no-op."""
+        from pystore.async_operations import AsyncStore
+
+        async_store = AsyncStore(self.store)
+        # First close — should succeed
+        async_store.close()
+        assert async_store._closed is True
+
+        # Second close — should be a no-op (no exception raised)
+        async_store.close()
+        assert async_store._closed is True
+
+    @pytest.mark.asyncio
+    async def test_async_collection_closed_flag_initialized(self):
+        """_closed flag should be False on construction, not rely on getattr."""
+        from pystore.async_operations import AsyncCollection
+
+        async_coll = AsyncCollection(self.collection)
+        assert async_coll._closed is False
+
+    @pytest.mark.asyncio
+    async def test_async_store_closed_flag_initialized(self):
+        """_closed flag should be False on construction, not rely on getattr."""
+        from pystore.async_operations import AsyncStore
+
+        async_store = AsyncStore(self.store)
+        assert async_store._closed is False
+
+    @pytest.mark.asyncio
+    async def test_context_manager_no_double_shutdown(self):
+        """AsyncContextManager should not shut down executor twice on exit.
+
+        The close() call inside __aexit__ already shuts down the shared
+        executor; a redundant second shutdown was removed as part of the
+        integration cleanup.
+        """
+        from pystore.async_operations import AsyncContextManager
+
+        ctx = AsyncContextManager(self.collection)
+        async with ctx as async_coll:
+            df = pd.DataFrame({'value': [1, 2]})
+            await async_coll.write('ctx_item', df)
+
+        # After exiting the context, the async object should be closed
+        assert async_coll._closed is True
+
+        # Verify data was written
+        result = self.collection.item('ctx_item').to_pandas()
+        pd.testing.assert_frame_equal(result.reset_index(drop=True), df)
+
 
 class TestTransactions:
     def setup_method(self):

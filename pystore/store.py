@@ -23,7 +23,7 @@ import shutil
 
 from . import utils
 from .collection import Collection
-from .exceptions import CollectionExistsError, CollectionNotFoundError
+from .exceptions import CollectionExistsError, CollectionNotFoundError, StorageError
 from .logger import get_logger
 
 logger = get_logger(__name__)
@@ -84,7 +84,7 @@ class store:
             return True
         except Exception as e:
             logger.error(f"Failed to delete collection '{collection_name}': {e}")
-            raise RuntimeError(
+            raise StorageError(
                 f"Failed to delete collection '{collection_name}': {str(e)}"
             ) from e
 
