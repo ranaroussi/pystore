@@ -152,8 +152,7 @@ import asyncio
 from pystore import async_pystore, store
 
 async def async_example():
-    my_store = store("mydatastore")
-    async with async_pystore(my_store) as async_store:
+    async with async_pystore(store("mydatastore")) as async_store:
         collection = async_store.collection("NASDAQ")
         # Async write
         await collection.write("AAPL", df)
@@ -243,12 +242,10 @@ for chunk in read_in_chunks(collection, "large_item", chunk_size=50000):
 
 ```python
 # Column selection - read only what you need
-item = collection.item("data", columns=["price", "volume"])  # 4x faster for subset
-df = item.to_pandas()
+df = collection.item("data", columns=["price", "volume"]).to_pandas()  # 4x faster for subset
 
 # Filter at storage level
-item = collection.item("data", filters=[("price", ">", 100)])  # 8x faster
-df = item.to_pandas()
+df = collection.item("data", filters=[("price", ">", 100)]).to_pandas()  # 8x faster
 ```
 
 ### Using Dask schedulers
