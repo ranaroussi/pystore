@@ -195,7 +195,39 @@ class TestPackagingTooling:
             "{{ name }}-{{ version }}.tar.gz"
         ) in recipe
         assert 'license_file: "LICENSE.txt"' in recipe
-        assert "- fsspec >=2023.1.0" in recipe
+        assert "- fsspec ==2025.7.0" in recipe
+
+        # Conda recipe dependencies should use exact version pins
+        expected_conda_pins = [
+            "- cloudpickle ==3.1.1",
+            "- dask ==2024.8.0",
+            "- distributed ==2024.8.0",
+            "- fsspec ==2025.7.0",
+            "- numpy ==1.26.4",
+            "- pandas ==2.3.1",
+            "- partd ==1.4.2",
+            "- pyarrow ==21.0.0",
+            "- python-snappy ==0.7.3",
+            "- toolz ==1.0.0",
+        ]
+        for pin in expected_conda_pins:
+            assert pin in recipe, f"Expected conda pin {pin!r} not found in meta.yaml"
+
+        # Old loose specifiers should not be present
+        old_conda_specifiers = [
+            "cloudpickle >=",
+            "dask >=",
+            "distributed >=",
+            "fsspec >=",
+            "numpy >=",
+            "pandas >=",
+            "partd >=",
+            "pyarrow >=",
+            "python-snappy >=",
+            "toolz >=",
+        ]
+        for specifier in old_conda_specifiers:
+            assert specifier not in recipe, f"Old specifier {specifier!r} still present in meta.yaml"
 
     def test_publish_workflow_uses_modern_build_and_publish_steps(self):
         """The publish workflow should use the modern PyPA build and publish path."""
@@ -211,3 +243,7 @@ class TestPackagingTooling:
         assert "id-token: write" in workflow
         assert "pypa/gh-action-pypi-publish@release/v1" in workflow
         assert "setup.py sdist bdist_wheel" not in workflow
+
+        # Build tools should use pinned versions, not --upgrade
+        assert "pip install pip==25.2 build==1.4.2 twine==6.1.0" in workflow
+        assert "--upgrade" not in workflow
