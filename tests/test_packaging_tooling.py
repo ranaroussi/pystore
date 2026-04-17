@@ -43,6 +43,93 @@ PACKAGE_VERSION = _load_package_version()
 class TestPackagingTooling:
     """Test packaging metadata and release workflow configuration."""
 
+    def test_dependency_manifests_pin_exact_versions(self):
+        """Dependency manifests should use exact pins for direct dependencies."""
+        pyproject = (REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8")
+        requirements = (REPO_ROOT / "requirements.txt").read_text(encoding="utf-8")
+
+        expected_pyproject_entries = [
+            'requires = ["setuptools==77.0.3"]',
+            '"pandas==2.3.1",',
+            '"pyarrow==21.0.0",',
+            "\"dask[complete]==2024.8.0; python_version < '3.10'\",",
+            "\"dask[complete]==2025.7.0; python_version >= '3.10'\",",
+            '"numpy==1.26.4",',
+            '"fsspec==2025.7.0",',
+            '"toolz==1.0.0",',
+            '"cloudpickle==3.1.1",',
+            '"python-snappy==0.7.3",',
+            '"partd==1.4.2",',
+            '"psutil==7.0.0",',
+            '"pytest==8.4.1",',
+            '"pytest-asyncio==1.1.0",',
+            '"pytest-cov==6.2.1",',
+            '"pytest-xdist==3.8.0",',
+            '"black==25.1.0",',
+            '"ruff==0.12.4",',
+            '"mypy==1.17.0",',
+            "\"pandas-stubs==2.2.2.240807; python_version < '3.10'\",",
+            "\"pandas-stubs==2.3.0.250703; python_version >= '3.10'\",",
+            '"types-setuptools==80.9.0.20250529",',
+            '"build==1.4.2",',
+            "\"sphinx==7.4.7; python_version < '3.10'\",",
+            "\"sphinx==8.1.3; python_version == '3.10'\",",
+            "\"sphinx==8.2.3; python_version >= '3.11'\",",
+            '"sphinx-rtd-theme==3.0.2",',
+            "\"sphinx-autodoc-typehints==2.3.0; python_version < '3.10'\",",
+            "\"sphinx-autodoc-typehints==3.0.1; python_version == '3.10'\",",
+            "\"sphinx-autodoc-typehints==3.2.0; python_version >= '3.11'\",",
+        ]
+
+        expected_requirements = [
+            "pandas==2.3.1",
+            "pyarrow==21.0.0",
+            'dask[complete]==2024.8.0; python_version < "3.10"',
+            'dask[complete]==2025.7.0; python_version >= "3.10"',
+            "numpy==1.26.4",
+            "fsspec==2025.7.0",
+            "toolz==1.0.0",
+            "cloudpickle==3.1.1",
+            "python-snappy==0.7.3",
+            "partd==1.4.2",
+        ]
+
+        for entry in expected_pyproject_entries:
+            assert entry in pyproject
+
+        for entry in expected_requirements:
+            assert entry in requirements
+
+        old_specifiers = [
+            "setuptools>=",
+            "pandas>=",
+            "pyarrow>=",
+            "dask[complete]>=",
+            "numpy>=",
+            "fsspec>=",
+            "toolz>=",
+            "cloudpickle>=",
+            "python-snappy>=",
+            "partd>=",
+            "psutil>=",
+            "pytest>=",
+            "pytest-asyncio>=",
+            "pytest-cov>=",
+            "pytest-xdist>=",
+            "black>=",
+            "build>=",
+            "ruff>=",
+            "mypy>=",
+            "pandas-stubs>=",
+            "sphinx>=",
+            "sphinx-rtd-theme>=",
+            "sphinx-autodoc-typehints>=",
+        ]
+
+        for specifier in old_specifiers:
+            assert specifier not in pyproject
+            assert specifier not in requirements
+
     def test_build_outputs_include_typing_marker_and_metadata(self, tmp_path):
         """Building the project should produce distributions with expected metadata."""
         source_dir = tmp_path / "source"
