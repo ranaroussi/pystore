@@ -77,6 +77,38 @@ class TestStore:
         with pytest.raises(ValueError, match="Store 'nonexistent' does not exist"):
             pystore.delete_store("nonexistent")
 
+    def test_delete_stores(self, temp_store_path):
+        """Test deleting all stores"""
+        pystore.set_path(temp_store_path)
+
+        # Create some stores
+        pystore.store("store1")
+        pystore.store("store2")
+        assert len(pystore.list_stores()) >= 2
+
+        # Delete all stores
+        pystore.delete_stores()
+        assert len(pystore.list_stores()) == 0
+
+    def test_delete_stores_nonexistent_path_raises_valueerror(self, temp_store_path):
+        """delete_stores() raises ValueError (not FileNotFoundError) when path doesn't exist"""
+        # Use a completely separate temp path so we don't interfere with
+        # the fixture's cleanup.
+        import tempfile
+
+        other_path = tempfile.mkdtemp(prefix="pystore_delete_stores_test_")
+        try:
+            pystore.set_path(other_path)
+            # Remove the directory to simulate a non-existent store path
+            shutil.rmtree(other_path)
+
+            # delete_stores() should raise ValueError because the path doesn't exist
+            with pytest.raises(ValueError, match="does not exist"):
+                pystore.delete_stores()
+        finally:
+            # Restore the fixture's path for subsequent tests
+            pystore.set_path(temp_store_path)
+
     def test_path_handling(self):
         """Test various path input formats"""
         # Create secure temporary directories

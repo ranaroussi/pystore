@@ -207,7 +207,7 @@ class AsyncCollection:
     # Backward-compatible alias — the method was renamed from
     # ``parallel_append`` to ``ordered_append`` to reflect the sequential
     # behaviour introduced during the modernization effort.
-    def parallel_append(self, *args, **kwargs):
+    async def parallel_append(self, *args, **kwargs):
         """Deprecated: use ordered_append instead.
 
         The old name was misleading because the method has always been
@@ -222,7 +222,7 @@ class AsyncCollection:
             DeprecationWarning,
             stacklevel=2,
         )
-        return self.ordered_append(*args, **kwargs)
+        return await self.ordered_append(*args, **kwargs)
 
     def close(self):
         """Close the executor and event loop.

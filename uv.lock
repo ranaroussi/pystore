@@ -1015,15 +1015,6 @@ wheels = [
 ]
 
 [[package]]
-name = "multitasking"
-version = "0.0.11"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/6f/75/345e196762fc51fb5b4e9504631972b1271a0cb2ba1ce2afe5b185c95b64/multitasking-0.0.11.tar.gz", hash = "sha256:4d6bc3cc65f9b2dca72fb5a787850a88dae8f620c2b36ae9b55248e51bcd6026", size = 8150, upload-time = "2022-06-28T08:40:46.278Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/3e/8a/bb3160e76e844db9e69a413f055818969c8acade64e1a9ac5ce9dfdcf6c1/multitasking-0.0.11-py3-none-any.whl", hash = "sha256:1e5b37a5f8fc1e6cfaafd1a82b6b1cc6d2ed20037d3b89c25a84f499bd7b3dd4", size = 8533, upload-time = "2022-06-28T08:40:44.524Z" },
-]
-
-[[package]]
 name = "mypy"
 version = "1.17.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1465,14 +1456,12 @@ wheels = [
 
 [[package]]
 name = "pystore"
-version = "1.0.1"
 source = { editable = "." }
 dependencies = [
     { name = "cloudpickle" },
     { name = "dask", version = "2024.8.0", source = { registry = "https://pypi.org/simple" }, extra = ["complete"], marker = "python_full_version < '3.10'" },
     { name = "dask", version = "2025.7.0", source = { registry = "https://pypi.org/simple" }, extra = ["complete"], marker = "python_full_version >= '3.10'" },
     { name = "fsspec" },
-    { name = "multitasking" },
     { name = "numpy" },
     { name = "pandas" },
     { name = "partd" },
@@ -1503,6 +1492,9 @@ docs = [
     { name = "sphinx-autodoc-typehints", version = "3.2.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
     { name = "sphinx-rtd-theme" },
 ]
+monitoring = [
+    { name = "psutil" },
+]
 
 [package.metadata]
 requires-dist = [
@@ -1510,12 +1502,12 @@ requires-dist = [
     { name = "cloudpickle", specifier = ">=3.0.0" },
     { name = "dask", extras = ["complete"], specifier = ">=2024.1.0" },
     { name = "fsspec", specifier = ">=2023.1.0" },
-    { name = "multitasking", specifier = ">=0.0.11" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.7.0" },
     { name = "numpy", specifier = ">=1.24.0,<3.0.0" },
     { name = "pandas", specifier = ">=2.0.0,<3.0.0" },
     { name = "pandas-stubs", marker = "extra == 'dev'", specifier = ">=2.0.0" },
     { name = "partd", specifier = ">=1.4.0" },
+    { name = "psutil", marker = "extra == 'monitoring'", specifier = ">=5.9.0" },
     { name = "pyarrow", specifier = ">=15.0.0" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=7.4.0" },
     { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.21.0" },
@@ -1529,7 +1521,7 @@ requires-dist = [
     { name = "toolz", specifier = ">=0.12.0" },
     { name = "types-setuptools", marker = "extra == 'dev'" },
 ]
-provides-extras = ["dev", "docs"]
+provides-extras = ["monitoring", "dev", "docs"]
 
 [[package]]
 name = "pytest"

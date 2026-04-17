@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.0.2 (Unreleased)
+
+**Deprecations & Behavior Changes:**
+
+- `Collection._item_path()` now emits a `DeprecationWarning`. Use `Collection.get_item_path()` instead.
+- `Collection.write_threaded()` now emits a `DeprecationWarning` — it is identical to `write()`. Any caller using `append(..., threaded=True)` will receive a deprecation warning on every call. Use `write()` directly or `AsyncCollection` for async writes.
+- `parallel_append()` (on `AsyncCollection`) now emits a `DeprecationWarning`. Use `ordered_append()` instead.
+- `delete_stores()` now raises `ValueError` (instead of `FileNotFoundError`) when the store path does not exist, consistent with `delete_store()`.
+
+**Internal:**
+
+- Removed `multitasking` dependency — `@multitasking.task` decorators have been replaced with synchronous execution. For true async writes, use `AsyncCollection`.
+
 ## 1.0.1 (2025-07-22)
 
 **Dependency Update**

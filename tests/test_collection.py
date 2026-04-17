@@ -332,6 +332,53 @@ class TestOverwriteRecovery:
         assert list(result["value"]) == [1, 2, 3, 4, 5]
 
 
+class TestItemPathDeprecation:
+    """Test that _item_path emits a DeprecationWarning."""
+
+    def test_item_path_emits_deprecation_warning(self, test_collection, sample_data):
+        """Calling _item_path must emit a DeprecationWarning."""
+        test_collection.write("depr_item", sample_data)
+
+        with pytest.warns(DeprecationWarning, match="_item_path is deprecated"):
+            path = test_collection._item_path("depr_item")
+
+        # Result should match get_item_path
+        expected = test_collection.get_item_path("depr_item")
+        assert path == expected
+
+    def test_item_path_as_string_emits_deprecation_warning(self, test_collection):
+        """Calling _item_path(as_string=True) must also emit a DeprecationWarning."""
+        with pytest.warns(DeprecationWarning, match="_item_path is deprecated"):
+            path = test_collection._item_path("some_item", as_string=True)
+
+        expected = test_collection.get_item_path("some_item", as_string=True)
+        assert path == expected
+
+
+class TestWriteThreadedDeprecation:
+    """Test that write_threaded emits a DeprecationWarning."""
+
+    def test_write_threaded_emits_deprecation_warning(self, test_collection, sample_data):
+        """Calling write_threaded must emit a DeprecationWarning."""
+        with pytest.warns(DeprecationWarning, match="write_threaded is deprecated"):
+            test_collection.write_threaded("threaded_item", sample_data)
+
+        # Data should still be written correctly (delegates to write)
+        result = test_collection.item("threaded_item").to_pandas()
+        pd.testing.assert_frame_equal(result, sample_data)
+
+    def test_write_threaded_overwrite_emits_deprecation_warning(
+        self, test_collection, sample_data
+    ):
+        """Calling write_threaded with overwrite must emit a DeprecationWarning."""
+        test_collection.write("threaded_overwrite_item", sample_data)
+
+        with pytest.warns(DeprecationWarning, match="write_threaded is deprecated"):
+            test_collection.write_threaded(
+                "threaded_overwrite_item", sample_data, overwrite=True
+            )
+
+
 class TestIndexEmptyGuard:
     """Test that Collection.index(last=True) handles empty index gracefully."""
 
