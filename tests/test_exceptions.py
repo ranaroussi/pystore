@@ -97,3 +97,22 @@ class TestExceptions:
         assert issubclass(pystore.StorageError, pystore.PyStoreError)
         assert issubclass(pystore.SchemaError, pystore.PyStoreError)
         assert issubclass(pystore.ConfigurationError, pystore.PyStoreError)
+
+    def test_storage_error_on_delete_collection_failure(self, test_store):
+        """When shutil.rmtree fails inside delete_collection, a
+        StorageError (not RuntimeError) must be raised.
+        """
+        import sys
+        import unittest.mock
+
+        # Access the *module* pystore.store (not the class of the same
+        # name that pystore/__init__.py re-exports).
+        store_module = sys.modules["pystore.store"]
+
+        test_store.collection("doomed_coll")
+
+        with unittest.mock.patch.object(
+            store_module.shutil, "rmtree", side_effect=OSError("mock rmtree failure")
+        ):
+            with pytest.raises(pystore.StorageError, match="Failed to delete collection"):
+                test_store.delete_collection("doomed_coll")

@@ -236,10 +236,15 @@ def set_client(scheduler: Optional[Any] = None) -> Optional[Client]:
     if scheduler != config._SCHEDULER and config._CLIENT is not None:
         try:
             config._CLIENT.shutdown()
-            config._CLIENT = None
         except Exception as e:
-            logger.warning(f"Failed to shut down existing Dask client: {e}")
-            config._CLIENT = None
+            # Distinguish between a genuinely failed shutdown and an
+            # already-closed client.  Either way, clear the reference to
+            # avoid holding a stale client object.
+            if "already closed" in str(e).lower() or "shutdown" in str(e).lower():
+                logger.debug(f"Dask client was already shut down: {e}")
+            else:
+                logger.warning(f"Failed to shut down existing Dask client: {e}")
+        config._CLIENT = None
 
     config._SCHEDULER = scheduler
     if scheduler is not None:

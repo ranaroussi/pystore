@@ -8,6 +8,7 @@ Tests for PyStore Phase 4 Feature Enhancements
 import pytest
 import pandas as pd
 import numpy as np
+import os
 import tempfile
 import shutil
 import asyncio
@@ -233,6 +234,120 @@ class TestTransactions:
             result = self.collection.item(item).to_pandas()
             pd.testing.assert_frame_equal(result, df)
 
+    def test_cleanup_keeps_temp_dir_when_preservation_fails(self):
+        """When preservation of unrestored backups fails, the temp
+        directory must be kept on disk so the user can recover data
+        manually.
+        """
+        from pystore.transactions import Transaction
+
+        txn = Transaction(self.collection)
+        txn._ensure_temp_dir()
+        temp_dir = txn.temp_dir
+        assert temp_dir is not None
+
+        # Simulate a leftover backup directory in the temp dir that
+        # represents an unrestored backup from a failed rollback.
+        backup_dir = os.path.join(temp_dir, "backup_orphan_item")
+        os.makedirs(backup_dir)
+
+        # Make the recovery directory write-protected so that
+        # shutil.move inside _cleanup fails, triggering
+        # preservation_failed = True.
+        recovery_base = temp_dir + "_rollback_recovery"
+
+        original_makedirs = os.makedirs
+
+        def _raising_makedirs(*args, **kwargs):
+            # Only raise for the recovery path to simulate a
+            # PermissionError during preservation.
+            if args and recovery_base in args[0]:
+                raise PermissionError("simulated permission denied")
+            return original_makedirs(*args, **kwargs)
+
+        import unittest.mock
+        with unittest.mock.patch("pystore.transactions.os.makedirs", side_effect=_raising_makedirs):
+            txn._cleanup()
+
+        # The temp dir should still exist because preservation failed
+        assert os.path.exists(temp_dir), (
+            "Temp directory should be preserved when backup preservation fails"
+        )
+        # The backup should still be inside
+        assert os.path.exists(backup_dir), (
+            "Unrestored backup should remain in the preserved temp dir"
+        )
+
+        # Clean up for the test
+        shutil.rmtree(temp_dir, ignore_errors=True)
+
+    def test_cleanup_keeps_temp_dir_when_remaining_backups(self):
+        """When backups remain in the temp dir after preservation
+        (e.g. the preservation loop succeeded partially and one
+        backup_ directory is still left), the temp directory must be
+        kept on disk.
+        """
+        import unittest.mock
+        from pystore.transactions import Transaction
+
+        txn = Transaction(self.collection)
+        txn._ensure_temp_dir()
+        temp_dir = txn.temp_dir
+        assert temp_dir is not None
+
+        # Simulate TWO backup directories.  We'll make shutil.move
+        # fail on the second one so that one backup is moved out but
+        # the second remains inside the temp dir.
+        backup_dir1 = os.path.join(temp_dir, "backup_item_a")
+        backup_dir2 = os.path.join(temp_dir, "backup_item_b")
+        os.makedirs(backup_dir1)
+        os.makedirs(backup_dir2)
+
+        original_move = shutil.move
+        call_count = {"n": 0}
+
+        def _selective_move(src, dst, *args, **kwargs):
+            call_count["n"] += 1
+            # Let the first move succeed, fail on the second
+            if call_count["n"] > 1:
+                raise PermissionError("simulated move failure")
+            return original_move(src, dst, *args, **kwargs)
+
+        with unittest.mock.patch("pystore.transactions.shutil.move", side_effect=_selective_move):
+            txn._cleanup()
+
+        # The temp dir should still exist because backup_item_b
+        # remains inside (preservation_failed = True after the
+        # second move fails, and remaining_backups = True because
+        # backup_item_b is still there).
+        assert os.path.exists(temp_dir), (
+            "Temp directory should be preserved when backups remain"
+        )
+
+        # Clean up for the test
+        shutil.rmtree(temp_dir, ignore_errors=True)
+
+    def test_cleanup_removes_temp_dir_when_no_backups(self):
+        """When no backups remain, the temp directory should be removed."""
+        from pystore.transactions import Transaction
+
+        txn = Transaction(self.collection)
+        txn._ensure_temp_dir()
+        temp_dir = txn.temp_dir
+        assert temp_dir is not None
+
+        # No backup_ directories — just a stray file
+        dummy_file = os.path.join(temp_dir, "scratch.txt")
+        with open(dummy_file, "w") as f:
+            f.write("hello")
+
+        txn._cleanup()
+
+        # The temp dir should be gone
+        assert not os.path.exists(temp_dir), (
+            "Temp directory should be removed when no backups remain"
+        )
+
 
 class TestValidation:
     def setup_method(self):
@@ -372,6 +487,22 @@ class TestSchemaEvolution:
         # Should have all columns
         assert set(evolved_df.columns) == set(target_schema.columns)
         assert len(evolved_df) == len(df)
+
+    def test_unsupported_strategy_raises_value_error(self):
+        """Constructing a SchemaEvolution with an invalid strategy value
+        and then calling validate_evolution must raise ValueError (not
+        AssertionError).
+        """
+        from pystore.schema_evolution import SchemaEvolution, Schema
+
+        evolution = SchemaEvolution(strategy="nonexistent_strategy")
+        df1 = pd.DataFrame({"a": [1]})
+        df2 = pd.DataFrame({"a": [2]})
+        schema1 = Schema.from_dataframe(df1)
+        schema2 = Schema.from_dataframe(df2)
+
+        with pytest.raises(ValueError, match="Unsupported evolution strategy"):
+            evolution.validate_evolution(schema1, schema2)
 
 
 class TestTimezoneOperations:

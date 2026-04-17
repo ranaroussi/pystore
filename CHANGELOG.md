@@ -2,6 +2,10 @@
 
 ## 1.0.2 (Unreleased)
 
+**Breaking Changes:**
+
+- `Collection.delete_snapshot()` now raises `SnapshotNotFoundError` when the snapshot does not exist, instead of silently returning `True`. Previously, calling `delete_snapshot('nonexistent')` was a no-op that returned `True`; it now raises. Downstream code that relied on the old silent-success behavior should catch `SnapshotNotFoundError` or check `snapshot in collection.snapshots` before deleting.
+
 **Deprecations & Behavior Changes:**
 
 - `Collection._item_path()` now emits a `DeprecationWarning`. Use `Collection.get_item_path()` instead.

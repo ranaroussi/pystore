@@ -178,6 +178,38 @@ class TestComplexDataTypes:
         assert isinstance(result["interval"].dtype, pd.IntervalDtype)
         pd.testing.assert_frame_equal(result, df, check_like=True)
 
+    def test_interval_column_name_collision_raises(self):
+        """Writing a DataFrame with an Interval column whose derived
+        ``{col}_left`` / ``{col}_right`` names already exist in the
+        DataFrame must raise ``ValidationError`` rather than silently
+        overwriting the user's data.
+        """
+        intervals = pd.interval_range(start=0, end=3)
+        df = pd.DataFrame(
+            {
+                "rng": intervals,
+                "rng_left": [10, 20, 30],   # collides with Interval split
+                "value": [1, 2, 3],
+            }
+        )
+
+        with pytest.raises(ValidationError, match="Cannot serialize Interval column 'rng'"):
+            self.collection.write("interval_collision", df)
+
+    def test_interval_column_name_collision_right_only(self):
+        """Same as above but only the ``_right`` derived name collides."""
+        intervals = pd.interval_range(start=0, end=3)
+        df = pd.DataFrame(
+            {
+                "rng": intervals,
+                "rng_right": [10.0, 20.0, 30.0],  # collides with Interval split
+                "value": [1, 2, 3],
+            }
+        )
+
+        with pytest.raises(ValidationError, match="Cannot serialize Interval column 'rng'"):
+            self.collection.write("interval_collision_right", df)
+
     def test_string_dtype_roundtrip(self):
         """Regression: pandas StringDtype columns must round-trip as StringDtype.
 

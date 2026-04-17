@@ -36,7 +36,7 @@ from .logger import get_logger
 logger = get_logger(__name__)
 
 try:
-    import psutil as psutil
+    import psutil
 
     _HAS_PSUTIL = True
 except ImportError:  # pragma: no cover

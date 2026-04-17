@@ -232,11 +232,11 @@ class AsyncCollection:
         """
         if self._closed:
             return
-        self._closed = True
         self.executor.shutdown(wait=True)
         if self._loop is not None and not self._loop.is_running():
             self._loop.close()
             self._loop = None
+        self._closed = True
 
 
 class AsyncStore:
@@ -265,8 +265,8 @@ class AsyncStore:
         """
         if self._closed:
             return
-        self._closed = True
         self.executor.shutdown(wait=True)
+        self._closed = True
 
 
 # Convenience functions for async context managers
