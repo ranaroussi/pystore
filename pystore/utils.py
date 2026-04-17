@@ -189,11 +189,6 @@ def set_path(path=None):
         if not path.is_absolute():
             path = path.absolute()
 
-    # Validate path
-    path_str = str(path)
-    if "://" in path_str and "file://" not in path_str:
-        raise ValueError("PyStore currently only works with local file system")
-
     # Create directory if it doesn't exist
     try:
         path.mkdir(parents=True, exist_ok=True)

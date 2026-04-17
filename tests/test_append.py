@@ -283,3 +283,61 @@ class TestAppend:
         item = test_collection.item('test_item')
         df_read = item.to_pandas()
         assert len(df_read) == 6
+
+
+class TestAppendStreamComplexTypes:
+    """Regression tests for append_stream with MultiIndex and timezone-aware data.
+
+    These exercise the _validate_schema_compatibility path inside
+    append_stream, which uses ``current_item.to_pandas()`` to compare
+    schemas.  MultiIndex and timezone-aware items have different
+    on-disk representations vs. their pandas-visible schemas.
+    """
+
+    def test_append_stream_multiindex(self, test_collection):
+        """append_stream must validate and append MultiIndex DataFrames correctly."""
+        index1 = pd.MultiIndex.from_tuples(
+            [("A", "2024-01-01"), ("A", "2024-01-02"), ("B", "2024-01-01")],
+            names=["category", "date"],
+        )
+        df_initial = pd.DataFrame({"value": [1.0, 2.0, 3.0]}, index=index1)
+        test_collection.write("stream_mi", df_initial)
+
+        index2 = pd.MultiIndex.from_tuples(
+            [("A", "2024-01-03"), ("B", "2024-01-02")],
+            names=["category", "date"],
+        )
+        chunk1 = pd.DataFrame({"value": [4.0, 5.0]}, index=index2)
+        chunk2 = pd.DataFrame(
+            {"value": [6.0, 7.0]},
+            index=pd.MultiIndex.from_tuples(
+                [("C", "2024-01-01"), ("C", "2024-01-02")],
+                names=["category", "date"],
+            ),
+        )
+
+        test_collection.append_stream("stream_mi", iter([chunk1, chunk2]))
+
+        result = test_collection.item("stream_mi").to_pandas()
+        assert isinstance(result.index, pd.MultiIndex)
+        assert len(result) == 7
+
+    def test_append_stream_timezone_aware(self, test_collection):
+        """append_stream must validate and append timezone-aware DataFrames correctly."""
+        tz = "US/Eastern"
+        df_initial = pd.DataFrame(
+            {"value": [1.0, 2.0, 3.0]},
+            index=pd.date_range("2024-01-01", periods=3, freq="h", tz=tz),
+        )
+        test_collection.write("stream_tz", df_initial)
+
+        chunk = pd.DataFrame(
+            {"value": [4.0, 5.0]},
+            index=pd.date_range("2024-01-01 05:00", periods=2, freq="h", tz=tz),
+        )
+
+        test_collection.append_stream("stream_tz", iter([chunk]))
+
+        result = test_collection.item("stream_tz").to_pandas()
+        assert result.index.tz is not None
+        assert len(result) == 5

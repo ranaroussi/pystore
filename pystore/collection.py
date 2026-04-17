@@ -21,6 +21,7 @@
 import concurrent.futures
 import os
 import shutil
+import threading
 import time
 from typing import Any, Optional, Union, cast
 
@@ -65,6 +66,7 @@ class Collection:
         self._cache_timestamp: dict[str, float] = {}
         self._validator = None  # Data validator
         self._schema_evolutions = {}  # Schema evolution per item
+        self._items_lock = threading.Lock()  # Protects self.items mutations
 
     def get_item_path(self, item, as_string=False):
         """Get the filesystem path for an item.
@@ -91,9 +93,17 @@ class Collection:
         """Deprecated: Use get_item_path instead"""
         return self.get_item_path(item, as_string)
 
-    @multitasking.task
     def _list_items_threaded(self, **kwargs):
+        """Reload items list synchronously.
+
+        The previous ``@multitasking.task`` decorator made this method
+        asynchronous, returning ``None`` immediately.  Callers that
+        assigned ``self.items = self._list_items_threaded()`` would set
+        ``self.items = None`` as a result.  The method now runs
+        synchronously and returns the updated items set.
+        """
         self.items = self.list_items(**kwargs)
+        return self.items
 
     def list_items(self, **kwargs):
         dirs = utils.subdirs(utils.make_path(self.datastore, self.collection))
@@ -166,7 +176,8 @@ class Collection:
 
         try:
             shutil.rmtree(self.get_item_path(item))
-            self.items.discard(item)
+            with self._items_lock:
+                self.items.discard(item)
             if reload_items:
                 self.items = self._list_items_threaded()
             logger.info(f"Successfully deleted item '{item}'")
@@ -318,8 +329,10 @@ class Collection:
 
         utils.write_metadata(self.get_item_path(item), metadata)
 
-        # update items
-        self.items.add(item)
+        # update items — lock protects against concurrent modification from
+        # write_batch's ThreadPoolExecutor or other threads.
+        with self._items_lock:
+            self.items.add(item)
         if reload_items:
             self._list_items_threaded()
 

@@ -130,8 +130,16 @@ class Transaction:
                 affected_items = set()
                 for op in self.operations:
                     item = op['item']
-                    if item not in self.backups and op['type'] != 'write':
-                        self._backup_item(item)
+                    if item not in self.backups:
+                        if op['type'] != 'write':
+                            # Non-write ops (append, delete) always modify
+                            # existing data — back up unconditionally.
+                            self._backup_item(item)
+                        elif op['kwargs'].get('overwrite', False):
+                            # Write with overwrite=True will destroy the
+                            # existing item if it exists — back it up so the
+                            # transaction can be rolled back on failure.
+                            self._backup_item(item)
                     affected_items.add(item)
 
                 # Execute all operations

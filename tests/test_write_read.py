@@ -83,6 +83,35 @@ class TestWriteRead:
         # Index should be datetime after reading
         assert isinstance(df_read.index, pd.DatetimeIndex)
 
+    def test_write_with_epochdate_applies_time_partitioning(self, test_collection):
+        """Regression: epochdate=True with >10k rows must produce >1 partition.
+
+        The epochdate conversion now happens *after* partitioning so that
+        time-based partitioning can still detect the DatetimeIndex.  Without
+        the ``was_datetime_index`` flag the conversion would happen before
+        partitioning and all rows would land in a single partition.
+
+        We use a 2-year daily range so that the time-based partitioner
+        (monthly/quarterly) actually creates multiple calendar-aligned
+        partitions.
+        """
+        dates = pd.date_range('2022-01-01', periods=12000, freq='D')
+        data = pd.DataFrame({'value': range(12000)}, index=dates)
+
+        test_collection.write('epoch_part_item', data, epochdate=True)
+
+        # Verify the item was written to more than one parquet partition
+        item_path = test_collection.get_item_path('epoch_part_item')
+        ddf = dd.read_parquet(str(item_path), engine='pyarrow')
+        assert ddf.npartitions > 1, (
+            f"Expected >1 partition for 12k-row time series with epochdate, "
+            f"got {ddf.npartitions}"
+        )
+
+        # Also verify data integrity
+        df_read = test_collection.item('epoch_part_item').to_pandas()
+        assert len(df_read) == 12000
+
     def test_write_nanosecond_precision(self, test_collection, sample_data_nanosecond):
         """Test writing data with nanosecond precision timestamps"""
         # This previously caused TypeError with 'times' parameter

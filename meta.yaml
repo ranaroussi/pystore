@@ -7,6 +7,9 @@ package:
 
 source:
   url: "https://pypi.io/packages/source/{{ name[0] }}/{{ name }}/{{ name }}-{{ version }}.tar.gz"
+  # NOTE: This sha256 is a placeholder. Conda-forge updates it automatically
+  # during feedstock creation, but users building directly from meta.yaml
+  # will get a checksum mismatch. Update this hash after building the sdist.
   sha256: "a748dc3b9e0ebb9382e6f1491c64cf19bfb876d515bad2a52536e4177e5d6006"
 
 build:

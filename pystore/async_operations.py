@@ -53,12 +53,19 @@ class AsyncCollection:
         When called from within a running event loop the cached ``_loop`` is
         updated so that later calls outside any loop will reuse the same
         instance instead of silently creating a different one.
+
+        If the cached loop is no longer running (e.g. it was stopped or
+        closed), it is discarded and a fresh loop is created so that
+        ``run_in_executor`` does not raise on a stopped loop.
         """
         try:
             loop = asyncio.get_running_loop()
             self._loop = loop
             return loop
         except RuntimeError:
+            # Discard cached loop if it has been stopped or closed
+            if self._loop is not None and not self._loop.is_running():
+                self._loop = None
             if self._loop is None:
                 self._loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(self._loop)
@@ -160,7 +167,7 @@ class AsyncCollection:
             output[item_name] = result if not isinstance(result, Exception) else None
         return output
 
-    async def parallel_append(
+    async def ordered_append(
         self,
         item: str,
         dataframes: list[pd.DataFrame],
@@ -176,6 +183,11 @@ class AsyncCollection:
         for df in dataframes:
             await self.append(item, df, **kwargs)
         logger.debug(f"Completed sequential append to '{item}'")
+
+    # Backward-compatible alias — the method was renamed from
+    # ``parallel_append`` to ``ordered_append`` to reflect the sequential
+    # behaviour introduced during the modernization effort.
+    parallel_append = ordered_append
 
     def close(self):
         """Close the executor and event loop"""
