@@ -26,7 +26,6 @@ import time
 from typing import Any, Optional, Union, cast
 
 import dask.dataframe as dd
-import multitasking
 import pandas as pd
 
 from . import config, utils
@@ -56,6 +55,10 @@ logger = get_logger(__name__)
 class Collection:
     def __repr__(self):
         return f"PyStore.collection <{self.collection}>"
+
+    # Maximum number of items to keep in the metadata cache before evicting
+    # the least-recently-accessed entry.
+    _METADATA_CACHE_MAX = 256
 
     def __init__(self, collection, datastore):
         self.datastore = datastore
@@ -96,10 +99,10 @@ class Collection:
     def _list_items_threaded(self, **kwargs):
         """Reload items list synchronously.
 
-        The previous ``@multitasking.task`` decorator made this method
-        asynchronous, returning ``None`` immediately.  Callers that
-        assigned ``self.items = self._list_items_threaded()`` would set
-        ``self.items = None`` as a result.  The method now runs
+        .. deprecated::
+            Previously decorated with ``@multitasking.task`` which made
+            the method fire-and-forget.  Now runs synchronously and
+            returns the updated items set.
         synchronously and returns the updated items set.
 
         The ``_items_lock`` is held during the reassignment so that
@@ -149,10 +152,18 @@ class Collection:
         # Read metadata from disk
         metadata: dict[str, Any] = utils.read_metadata(self.get_item_path(item))
 
-        # Update cache
+        # Update cache (with bounded eviction)
         if use_cache:
             self._metadata_cache[item] = metadata.copy()
             self._cache_timestamp[item] = time.time()
+
+            # Evict least-recently-accessed entry when cache exceeds limit
+            while len(self._metadata_cache) > self._METADATA_CACHE_MAX:
+                oldest_item = min(
+                    self._cache_timestamp, key=lambda k: self._cache_timestamp[k]
+                )
+                self._metadata_cache.pop(oldest_item, None)
+                self._cache_timestamp.pop(oldest_item, None)
 
         return metadata
 
@@ -174,7 +185,15 @@ class Collection:
         if not last:
             return data.index.compute()
 
-        return float(str(data.index).split("\nName")[0].split("\n")[-1].split(" ")[0])
+        # Compute the last index value directly instead of parsing the
+        # string representation, which is fragile across Dask versions.
+        idx = data.index.compute()
+        last_val = idx[-1]
+        # Return as float for backwards compatibility with numeric indices
+        try:
+            return float(last_val)
+        except (TypeError, ValueError):
+            return last_val
 
     def delete_item(self, item, reload_items=False):
         if not utils.path_exists(self.get_item_path(item)):
@@ -235,16 +254,14 @@ class Collection:
         logger.info(f"Successfully migrated item '{item}' to version {to_version}")
 
     def write_threaded(self, *args, **kwargs):
-        """Write data using a background thread via ``multitasking``.
+        """Write data synchronously.
 
-        .. note::
+        .. deprecated::
             The ``@multitasking.task`` decorator was removed because it
             made the method fire-and-forget (returning ``None``
-            immediately).  Any caller checking the return value would
-            silently receive ``None`` instead of the actual write result.
-            The method now runs synchronously and returns the result of
-            ``self.write()``.  For true asynchronous writes, use the
-            ``AsyncCollection`` wrapper instead.
+            immediately).  The method now runs synchronously and is
+            equivalent to :meth:`write`.  For true asynchronous writes,
+            use the ``AsyncCollection`` wrapper instead.
         """
         return self.write(*args, **kwargs)
 
@@ -476,12 +493,14 @@ class Collection:
 
         # Always copy metadata to avoid mutating the Item's internal state
         metadata = current.metadata.copy()
+        # Use overwrite=True for temp items — a previous failed append may
+        # have left the __-prefixed directory on disk.
         write(
             tmp_item,
             combined,
             npartitions=npartitions,
             metadata=metadata,
-            overwrite=False,
+            overwrite=True,
             epochdate=epochdate,
             reload_items=reload_items,
             **kwargs,
@@ -491,12 +510,11 @@ class Collection:
     def _replace_item_with_temporary(self, item, tmp_item):
         """Replace the original item with the temporary item."""
         try:
-            multitasking.wait_for_tasks()
             self.delete_item(item=item, reload_items=False)
             shutil.move(self.get_item_path(tmp_item), self.get_item_path(item))
             self._list_items_threaded()
         except Exception as errn:
-            raise ValueError(f"Error: {errn!r}") from errn
+            raise StorageError(f"Failed to replace item '{item}': {errn!r}") from errn
 
     def append(
         self,
