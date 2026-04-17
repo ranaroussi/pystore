@@ -72,6 +72,34 @@ class TestAsyncOperations:
             assert item in results
             pd.testing.assert_frame_equal(results[item], df)
 
+    @pytest.mark.asyncio
+    async def test_parallel_append_alias(self):
+        """parallel_append is a backward-compatible alias for ordered_append.
+
+        Both names must produce identical sequential behaviour — DataFrames
+        are appended one at a time in the order provided.
+        """
+        from pystore.async_operations import AsyncCollection
+
+        # Write an initial item
+        df_initial = pd.DataFrame({'value': [1, 2]})
+        self.collection.write('alias_item', df_initial)
+
+        async_coll = AsyncCollection(self.collection)
+
+        df_a = pd.DataFrame({'value': [3]}, index=[2])
+        df_b = pd.DataFrame({'value': [4]}, index=[3])
+
+        # Use the alias — must behave identically to ordered_append
+        await async_coll.parallel_append('alias_item', [df_a, df_b])
+
+        result = self.collection.item('alias_item').to_pandas()
+        expected = pd.DataFrame({'value': [1, 2, 3, 4]})
+        pd.testing.assert_frame_equal(result.reset_index(drop=True), expected)
+
+        # Verify that parallel_append IS ordered_append (same method object)
+        assert AsyncCollection.parallel_append is AsyncCollection.ordered_append
+
 
 class TestTransactions:
     def setup_method(self):

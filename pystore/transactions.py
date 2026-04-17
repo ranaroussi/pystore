@@ -176,18 +176,57 @@ class Transaction:
             self._rolled_back = True
 
     def _rollback_internal(self):
-        """Internal rollback logic"""
+        """Internal rollback logic.
+
+        Each backup is restored independently so that a failure on one item
+        does not prevent the remaining items from being rolled back.  Partial
+        rollback failures are logged but do not raise — the ``finally`` block
+        in ``commit()`` will still call ``_cleanup()`` to remove the temp
+        directory, and any backups that could not be restored remain on disk
+        for manual recovery.
+        """
         # Restore backups
         for item, backup_path in self.backups.items():
-            item_path = self.collection.get_item_path(item)
-            if utils.path_exists(item_path):
-                shutil.rmtree(item_path)
-            shutil.move(backup_path, item_path)
-            logger.debug(f"Restored backup for item '{item}'")
+            try:
+                item_path = self.collection.get_item_path(item)
+                if utils.path_exists(item_path):
+                    shutil.rmtree(item_path)
+                shutil.move(backup_path, item_path)
+                logger.debug(f"Restored backup for item '{item}'")
+            except Exception as e:
+                logger.error(
+                    f"Failed to restore backup for item '{item}': {e}. "
+                    f"Backup may still be available at '{backup_path}' "
+                    f"for manual recovery."
+                )
 
     def _cleanup(self):
-        """Clean up transaction resources"""
+        """Clean up transaction resources.
+
+        If any backup directories still exist in the temp dir (because
+        ``_rollback_internal`` failed to restore them), those backup
+        directories are moved to the collection directory before the temp
+        directory is removed, so they remain available for manual recovery.
+        """
         if self.temp_dir and os.path.exists(self.temp_dir):
+            # Move any unrestored backups out of the temp dir before cleanup
+            try:
+                for entry in os.listdir(self.temp_dir):
+                    entry_path = os.path.join(self.temp_dir, entry)
+                    if os.path.isdir(entry_path) and entry.startswith("backup_"):
+                        item_name = entry[len("backup_"):]
+                        recovery_path = os.path.join(
+                            self.temp_dir + "_rollback_recovery", entry
+                        )
+                        os.makedirs(os.path.dirname(recovery_path), exist_ok=True)
+                        shutil.move(entry_path, recovery_path)
+                        logger.warning(
+                            f"Preserved unrestored backup for item '{item_name}' "
+                            f"at '{recovery_path}' for manual recovery."
+                        )
+            except Exception as e:
+                logger.error(f"Failed to preserve unrestored backups during cleanup: {e}")
+
             shutil.rmtree(self.temp_dir)
             logger.debug(f"Cleaned up transaction directory: {self.temp_dir}")
 

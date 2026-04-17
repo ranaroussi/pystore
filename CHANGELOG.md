@@ -71,6 +71,15 @@
 - Removed Python 2.7 and Python < 3.8 support
 - Removed Fastparquet support (PyArrow only)
 - Changed some internal APIs for better consistency
+- **DatetimeIndex auto-conversion to int64 removed**: Previously, writing a
+  DataFrame with a DatetimeIndex would automatically convert the index to
+  int64 (epoch nanoseconds) even when ``epochdate=False``, as long as the
+  index dtype string contained ``"datetime"``.  This silent conversion no
+  longer happens — parquet handles datetime natively, so the DatetimeIndex
+  is preserved on disk.  To get the old int64 behaviour, pass
+  ``epochdate=True`` explicitly.  Data written without ``epochdate=True``
+  will now round-trip with a ``DatetimeIndex`` instead of an integer index,
+  which may affect downstream code that expected int64 values.
 
 ## 0.1.24
 

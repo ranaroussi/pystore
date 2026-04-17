@@ -127,6 +127,8 @@ def validate_identifier(name, kind="Identifier"):
     value = os.fspath(name) if isinstance(name, os.PathLike) else str(name)
     if not value.strip():
         raise ValueError(f"{kind} name must not be empty")
+    if "\x00" in value:
+        raise ValueError(f"{kind} name contains null byte, which is not permitted")
     if value in {".", ".."}:
         raise ValueError(f"{kind} name '{value}' is invalid")
     if "/" in value or "\\" in value:

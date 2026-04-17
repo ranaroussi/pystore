@@ -101,8 +101,14 @@ class Collection:
         assigned ``self.items = self._list_items_threaded()`` would set
         ``self.items = None`` as a result.  The method now runs
         synchronously and returns the updated items set.
+
+        The ``_items_lock`` is held during the reassignment so that
+        concurrent ``add``/``discard`` calls inside the lock are not
+        silently overwritten.
         """
-        self.items = self.list_items(**kwargs)
+        fresh_items = self.list_items(**kwargs)
+        with self._items_lock:
+            self.items = fresh_items
         return self.items
 
     def list_items(self, **kwargs):
@@ -228,8 +234,18 @@ class Collection:
         self.write(item, migrated_data, overwrite=True)
         logger.info(f"Successfully migrated item '{item}' to version {to_version}")
 
-    @multitasking.task
     def write_threaded(self, *args, **kwargs):
+        """Write data using a background thread via ``multitasking``.
+
+        .. note::
+            The ``@multitasking.task`` decorator was removed because it
+            made the method fire-and-forget (returning ``None``
+            immediately).  Any caller checking the return value would
+            silently receive ``None`` instead of the actual write result.
+            The method now runs synchronously and returns the result of
+            ``self.write()``.  For true asynchronous writes, use the
+            ``AsyncCollection`` wrapper instead.
+        """
         return self.write(*args, **kwargs)
 
     def _validate_write_item(self, item, overwrite):
@@ -248,8 +264,14 @@ class Collection:
             # work on copy
             return data.copy()
 
-    def _apply_data_transformations(self, data, metadata, epochdate):
-        """Apply all data transformations and update metadata."""
+    def _apply_data_transformations(self, data, metadata):
+        """Apply all data transformations and update metadata.
+
+        .. note::
+            The ``epochdate`` parameter was removed because datetime→int64
+            conversion now happens in ``write()`` *after* partitioning, so
+            that time-based partitioning can still detect DatetimeIndex data.
+        """
         # Validate data
         self._validate_data(data)
         validate_dataframe_for_storage(data)
@@ -377,7 +399,7 @@ class Collection:
         _was_datetime_index = pd.api.types.is_datetime64_any_dtype(data.index)
 
         # Apply transformations
-        data, metadata = self._apply_data_transformations(data, metadata, epochdate)
+        data, metadata = self._apply_data_transformations(data, metadata)
 
         # Determine partitioning
         data, npartitions = self._determine_partitioning(

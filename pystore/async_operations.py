@@ -24,6 +24,7 @@ Async/await support for PyStore operations
 
 import asyncio
 import concurrent.futures
+import threading
 from functools import partial
 from typing import Any, Optional, Union, cast
 
@@ -46,6 +47,7 @@ class AsyncCollection:
         self.collection = collection
         self.executor = executor or concurrent.futures.ThreadPoolExecutor(max_workers=4)
         self._loop: Optional[asyncio.AbstractEventLoop] = None
+        self._loop_thread_id: Optional[int] = None  # Track which thread owns the loop
 
     def _get_loop(self) -> asyncio.AbstractEventLoop:
         """Get or create event loop.
@@ -57,18 +59,36 @@ class AsyncCollection:
         If the cached loop is no longer running (e.g. it was stopped or
         closed), it is discarded and a fresh loop is created so that
         ``run_in_executor`` does not raise on a stopped loop.
+
+        .. note::
+            ``asyncio`` event loops are not thread-safe.  The cached loop
+            must only be used from the thread that created it.  If this
+            method is called from a different thread than the one that
+            originally cached the loop, a fresh loop is created for the
+            current thread instead of reusing the stale one.
         """
+        current_thread = threading.current_thread().ident
+
         try:
             loop = asyncio.get_running_loop()
             self._loop = loop
+            self._loop_thread_id = current_thread
             return loop
         except RuntimeError:
-            # Discard cached loop if it has been stopped or closed
-            if self._loop is not None and not self._loop.is_running():
-                self._loop = None
+            # Discard cached loop if it has been stopped, closed, or
+            # belongs to a different thread (asyncio loops are not
+            # thread-safe).
+            if self._loop is not None:
+                if (
+                    not self._loop.is_running()
+                    or self._loop_thread_id != current_thread
+                ):
+                    self._loop = None
+                    self._loop_thread_id = None
             if self._loop is None:
                 self._loop = asyncio.new_event_loop()
                 asyncio.set_event_loop(self._loop)
+                self._loop_thread_id = current_thread
             return self._loop
 
     async def write(
@@ -190,7 +210,13 @@ class AsyncCollection:
     parallel_append = ordered_append
 
     def close(self):
-        """Close the executor and event loop"""
+        """Close the executor and event loop.
+
+        Safe to call multiple times — subsequent calls are no-ops.
+        """
+        if getattr(self, "_closed", False):
+            return
+        self._closed = True
         self.executor.shutdown(wait=True)
         if self._loop is not None and not self._loop.is_running():
             self._loop.close()
