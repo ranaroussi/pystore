@@ -8,11 +8,9 @@ Verifies all functionality shown in the README works correctly
 
 import os
 import shutil
-import sys
 import tempfile
-from types import ModuleType
 from typing import Any
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import numpy as np
 import pandas as pd
@@ -37,6 +35,10 @@ class TestReadmeExamples:
     def test_basic_workflow_with_yfinance(self):
         """Test the basic workflow example from README with yfinance"""
         # Mock yfinance without requiring the optional dependency to be installed.
+        # NOTE: We avoid patch.dict(sys.modules) because injecting a mock module
+        # into sys.modules while Dask performs parquet writes permanently corrupts
+        # Dask's deterministic tokenization system, causing all subsequent
+        # dd.to_parquet() calls to fail with TokenizationError.
         dates = pd.date_range("2023-01-01", periods=200, freq="D")
         mock_data = pd.DataFrame(
             {
@@ -49,67 +51,58 @@ class TestReadmeExamples:
             },
             index=dates,
         )
-        mock_yfinance: Any = ModuleType("yfinance")
-        mock_yfinance.download = MagicMock(return_value=mock_data)
+        mock_download = MagicMock(return_value=mock_data)
 
-        with patch.dict(sys.modules, {"yfinance": mock_yfinance}):
-            # Now run the README example
-            import yfinance as yf
+        # List stores (should be empty initially)
+        stores = pystore.list_stores()
+        assert isinstance(stores, list)
 
-            yf_module: Any = yf
+        # Connect to datastore (create it if not exist)
+        store = pystore.store("mydatastore")
 
-            # List stores (should be empty initially)
-            stores = pystore.list_stores()
-            assert isinstance(stores, list)
+        # List existing collections (should be empty)
+        collections = store.list_collections()
+        assert collections == []
 
-            # Connect to datastore (create it if not exist)
-            store = pystore.store("mydatastore")
-            # Store objects may not have a 'name' attribute in this implementation
+        # Access a collection (create it if not exist)
+        collection = store.collection("NASDAQ")
 
-            # List existing collections (should be empty)
-            collections = store.list_collections()
-            assert collections == []
+        # List items in collection (should be empty)
+        items = collection.list_items()
+        assert len(items) == 0
 
-            # Access a collection (create it if not exist)
-            collection = store.collection("NASDAQ")
-            # Collection objects may not have a 'name' attribute in this implementation
+        # Load some data from yfinance (via mock)
+        aapl = mock_download("AAPL", multi_level_index=False)
+        assert len(aapl) == 200
 
-            # List items in collection (should be empty)
-            items = collection.list_items()
-            assert len(items) == 0
+        # Store the first 100 rows of the data in the collection under "AAPL"
+        collection.write("AAPL", aapl[:100], metadata={"source": "yfinance"})
 
-            # Load some data from yfinance
-            aapl = yf_module.download("AAPL", multi_level_index=False)
-            assert len(aapl) == 200
+        # Reading the item's data
+        item = collection.item("AAPL")
+        _ = item.data  # <-- Dask dataframe
+        metadata = item.metadata
+        df = item.to_pandas()
 
-            # Store the first 100 rows of the data in the collection under "AAPL"
-            collection.write("AAPL", aapl[:100], metadata={"source": "yfinance"})
+        # Verify data
+        assert len(df) == 100
+        assert metadata["source"] == "yfinance"
+        pd.testing.assert_frame_equal(
+            df, aapl[:100], check_names=False, check_freq=False
+        )
 
-            # Reading the item's data
-            item = collection.item("AAPL")
-            _ = item.data  # <-- Dask dataframe
-            metadata = item.metadata
-            df = item.to_pandas()
+        # Append the rest of the rows to the "AAPL" item
+        collection.append("AAPL", aapl[100:])
 
-            # Verify data
-            assert len(df) == 100
-            assert metadata["source"] == "yfinance"
-            pd.testing.assert_frame_equal(
-                df, aapl[:100], check_names=False, check_freq=False
-            )
+        # Reading the updated item's data
+        item = collection.item("AAPL")
+        _ = item.data  # access data attribute
+        metadata = item.metadata
+        df = item.to_pandas()
 
-            # Append the rest of the rows to the "AAPL" item
-            collection.append("AAPL", aapl[100:])
-
-            # Reading the updated item's data
-            item = collection.item("AAPL")
-            _ = item.data  # access data attribute
-            metadata = item.metadata
-            df = item.to_pandas()
-
-            # Verify appended data
-            assert len(df) == 200
-            pd.testing.assert_frame_equal(df, aapl, check_names=False, check_freq=False)
+        # Verify appended data
+        assert len(df) == 200
+        pd.testing.assert_frame_equal(df, aapl, check_names=False, check_freq=False)
 
     def test_query_functionality(self):
         """Test metadata-based query functionality"""
