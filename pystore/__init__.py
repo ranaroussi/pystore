@@ -18,6 +18,24 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""PyStore — Flat-file datastore for Pandas timeseries data.
+
+Built on top of Pandas, Dask, and Parquet (via PyArrow), PyStore provides
+an easy-to-use datastore that can query millions of rows per second per client.
+
+Usage::
+
+    import pystore
+
+    pystore.set_path("~/pystore")
+    store = pystore.store("mydatastore")
+    collection = store.collection("NASDAQ")
+    collection.write("AAPL", df, metadata={"source": "yfinance"})
+    item = collection.item("AAPL")
+
+See https://github.com/ranaroussi/pystore for full documentation.
+"""
+
 # PyArrow is now the only supported engine
 
 from .async_operations import AsyncCollection, AsyncStore, async_pystore
