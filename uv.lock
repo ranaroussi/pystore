@@ -141,6 +141,22 @@ wheels = [
 ]
 
 [[package]]
+name = "build"
+version = "1.4.2"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "colorama", marker = "os_name == 'nt'" },
+    { name = "importlib-metadata", marker = "python_full_version < '3.10.2'" },
+    { name = "packaging" },
+    { name = "pyproject-hooks" },
+    { name = "tomli", marker = "python_full_version < '3.11'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/6c/1d/ab15c8ac57f4ee8778d7633bc6685f808ab414437b8644f555389cdc875e/build-1.4.2.tar.gz", hash = "sha256:35b14e1ee329c186d3f08466003521ed7685ec15ecffc07e68d706090bf161d1", size = 83433, upload-time = "2026-03-25T14:20:27.659Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/4a/57/3b7d4dd193ade4641c865bc2b93aeeb71162e81fc348b8dad020215601ed/build-1.4.2-py3-none-any.whl", hash = "sha256:7a4d8651ea877cb2a89458b1b198f2e69f536c95e89129dbf5d448045d60db88", size = 24643, upload-time = "2026-03-25T14:20:26.568Z" },
+]
+
+[[package]]
 name = "certifi"
 version = "2025.7.14"
 source = { registry = "https://pypi.org/simple" }
@@ -1455,6 +1471,15 @@ wheels = [
 ]
 
 [[package]]
+name = "pyproject-hooks"
+version = "1.2.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/e7/82/28175b2414effca1cdac8dc99f76d660e7a4fb0ceefa4b4ab8f5f6742925/pyproject_hooks-1.2.0.tar.gz", hash = "sha256:1e859bd5c40fae9448642dd871adf459e5e2084186e8d2c2a79a824c970da1f8", size = 19228, upload-time = "2024-09-29T09:24:13.293Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/bd/24/12818598c362d7f300f18e74db45963dbcb85150324092410c8b49405e42/pyproject_hooks-1.2.0-py3-none-any.whl", hash = "sha256:9e5c6bfa8dcc30091c74b0cf803c81fdd29d94f01992a7707bc97babb1141913", size = 10216, upload-time = "2024-09-29T09:24:11.978Z" },
+]
+
+[[package]]
 name = "pystore"
 source = { editable = "." }
 dependencies = [
@@ -1473,6 +1498,7 @@ dependencies = [
 [package.optional-dependencies]
 dev = [
     { name = "black" },
+    { name = "build" },
     { name = "mypy" },
     { name = "pandas-stubs", version = "2.2.2.240807", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.10'" },
     { name = "pandas-stubs", version = "2.3.0.250703", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
@@ -1498,28 +1524,35 @@ monitoring = [
 
 [package.metadata]
 requires-dist = [
-    { name = "black", marker = "extra == 'dev'", specifier = ">=23.0.0" },
-    { name = "cloudpickle", specifier = ">=3.0.0" },
-    { name = "dask", extras = ["complete"], specifier = ">=2024.1.0" },
-    { name = "fsspec", specifier = ">=2023.1.0" },
-    { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.7.0" },
-    { name = "numpy", specifier = ">=1.24.0,<3.0.0" },
-    { name = "pandas", specifier = ">=2.0.0,<3.0.0" },
-    { name = "pandas-stubs", marker = "extra == 'dev'", specifier = ">=2.0.0" },
-    { name = "partd", specifier = ">=1.4.0" },
-    { name = "psutil", marker = "extra == 'monitoring'", specifier = ">=5.9.0" },
-    { name = "pyarrow", specifier = ">=15.0.0" },
-    { name = "pytest", marker = "extra == 'dev'", specifier = ">=7.4.0" },
-    { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.21.0" },
-    { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=4.1.0" },
-    { name = "pytest-xdist", marker = "extra == 'dev'", specifier = ">=3.3.0" },
-    { name = "python-snappy", specifier = ">=0.6.1" },
-    { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.1.0" },
-    { name = "sphinx", marker = "extra == 'docs'", specifier = ">=7.0.0" },
-    { name = "sphinx-autodoc-typehints", marker = "extra == 'docs'", specifier = ">=1.24.0" },
-    { name = "sphinx-rtd-theme", marker = "extra == 'docs'", specifier = ">=1.3.0" },
-    { name = "toolz", specifier = ">=0.12.0" },
-    { name = "types-setuptools", marker = "extra == 'dev'" },
+    { name = "black", marker = "extra == 'dev'", specifier = "==25.1.0" },
+    { name = "build", marker = "extra == 'dev'", specifier = "==1.4.2" },
+    { name = "cloudpickle", specifier = "==3.1.1" },
+    { name = "dask", extras = ["complete"], marker = "python_full_version < '3.10'", specifier = "==2024.8.0" },
+    { name = "dask", extras = ["complete"], marker = "python_full_version >= '3.10'", specifier = "==2025.7.0" },
+    { name = "fsspec", specifier = "==2025.7.0" },
+    { name = "mypy", marker = "extra == 'dev'", specifier = "==1.17.0" },
+    { name = "numpy", specifier = "==1.26.4" },
+    { name = "pandas", specifier = "==2.3.1" },
+    { name = "pandas-stubs", marker = "python_full_version >= '3.10' and extra == 'dev'", specifier = "==2.3.0.250703" },
+    { name = "pandas-stubs", marker = "python_full_version < '3.10' and extra == 'dev'", specifier = "==2.2.2.240807" },
+    { name = "partd", specifier = "==1.4.2" },
+    { name = "psutil", marker = "extra == 'monitoring'", specifier = "==7.0.0" },
+    { name = "pyarrow", specifier = "==21.0.0" },
+    { name = "pytest", marker = "extra == 'dev'", specifier = "==8.4.1" },
+    { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = "==1.1.0" },
+    { name = "pytest-cov", marker = "extra == 'dev'", specifier = "==6.2.1" },
+    { name = "pytest-xdist", marker = "extra == 'dev'", specifier = "==3.8.0" },
+    { name = "python-snappy", specifier = "==0.7.3" },
+    { name = "ruff", marker = "extra == 'dev'", specifier = "==0.12.4" },
+    { name = "sphinx", marker = "python_full_version == '3.10.*' and extra == 'docs'", specifier = "==8.1.3" },
+    { name = "sphinx", marker = "python_full_version < '3.10' and extra == 'docs'", specifier = "==7.4.7" },
+    { name = "sphinx", marker = "python_full_version >= '3.11' and extra == 'docs'", specifier = "==8.2.3" },
+    { name = "sphinx-autodoc-typehints", marker = "python_full_version == '3.10.*' and extra == 'docs'", specifier = "==3.0.1" },
+    { name = "sphinx-autodoc-typehints", marker = "python_full_version < '3.10' and extra == 'docs'", specifier = "==2.3.0" },
+    { name = "sphinx-autodoc-typehints", marker = "python_full_version >= '3.11' and extra == 'docs'", specifier = "==3.2.0" },
+    { name = "sphinx-rtd-theme", marker = "extra == 'docs'", specifier = "==3.0.2" },
+    { name = "toolz", specifier = "==1.0.0" },
+    { name = "types-setuptools", marker = "extra == 'dev'", specifier = "==80.9.0.20250529" },
 ]
 provides-extras = ["monitoring", "dev", "docs"]
 
