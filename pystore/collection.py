@@ -179,16 +179,6 @@ class Collection:
 
         Performs a direct filesystem existence check (O(1)) without
         scanning the full items list.
-
-        Parameters
-        ----------
-        item : str
-            The item name to check
-
-        Returns
-        -------
-        bool
-            True if the item exists, False otherwise
         """
         return utils.path_exists(self.get_item_path(item))
 
