@@ -65,7 +65,7 @@ from .validation import (
     with_validation,
 )
 
-__version__ = "1.0.2.dev0"
+__version__ = "1.0.2.dev1"
 __author__ = "Ran Aroussi"
 
 __all__ = [
