@@ -174,6 +174,24 @@ class Collection:
 
         return metadata
 
+    def has_item(self, item: str) -> bool:
+        """Check whether an item exists in this collection.
+
+        Performs a direct filesystem existence check (O(1)) without
+        scanning the full items list.
+
+        Parameters
+        ----------
+        item : str
+            The item name to check
+
+        Returns
+        -------
+        bool
+            True if the item exists, False otherwise
+        """
+        return utils.path_exists(self.get_item_path(item))
+
     def clear_metadata_cache(self, item: Optional[str] = None) -> None:
         """Clear metadata cache for specific item or all items"""
         if item:
