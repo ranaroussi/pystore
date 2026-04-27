@@ -57,7 +57,7 @@ def read_csv(
         index_name = kwargs["index_name"]
         del kwargs["index_name"]
 
-    df = cast(dd.DataFrame, dd.read_csv(urlpath, *args, **kwargs))
+    df = dd.read_csv(urlpath, *args, **kwargs)
 
     if index_col is not None:
         df = df.set_index(index_col)
@@ -261,12 +261,12 @@ def get_client() -> Optional[Client]:
     return config._CLIENT
 
 
-def set_partition_size(size: Optional[Union[int, float]] = None) -> Union[int, float]:
+def set_partition_size(size: Optional[float] = None) -> float:
     if size is None:
-        size = cast(Union[int, float], config.DEFAULT_PARTITION_SIZE * 1)
+        size = config.DEFAULT_PARTITION_SIZE * 1
     config.PARTITION_SIZE = size
-    return cast(Union[int, float], config.PARTITION_SIZE)
+    return config.PARTITION_SIZE
 
 
-def get_partition_size() -> Union[int, float]:
-    return cast(Union[int, float], config.PARTITION_SIZE)
+def get_partition_size() -> float:
+    return config.PARTITION_SIZE
