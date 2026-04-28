@@ -18,6 +18,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Configuration and default state for PyStore"""
+
 import os
 from pathlib import Path
 from typing import Optional
