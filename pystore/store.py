@@ -18,6 +18,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Datastore management for PyStore"""
+
 import os
 import shutil
 
