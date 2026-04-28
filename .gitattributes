@@ -1,0 +1,15 @@
+# Auto-detect text files and normalize to LF
+* text=auto eol=lf
+
+# Explicit text files — enforce LF line endings
+*.py   text eol=lf
+*.md   text eol=lf
+*.toml text eol=lf
+*.yml  text eol=lf
+*.yaml text eol=lf
+*.json text eol=lf
+
+# Binary files — prevent normalization
+*.png     binary
+*.jpg     binary
+*.parquet binary
