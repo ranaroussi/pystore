@@ -93,6 +93,20 @@ class TestCollection:
         assert "item3" in items_a
         assert "item2" not in items_a
 
+    def test_has_item_returns_true_for_existing_item(self, test_collection, sample_data):
+        """has_item returns True for an item that exists in the collection."""
+        test_collection.write("item1", sample_data)
+        assert test_collection.has_item("item1") is True
+
+    def test_has_item_returns_false_for_missing_item(self, test_collection, sample_data):
+        """has_item returns False for an item that does not exist."""
+        test_collection.write("item1", sample_data)
+        assert test_collection.has_item("nonexistent") is False
+
+    def test_has_item_returns_false_on_empty_collection(self, test_collection):
+        """has_item returns False when the collection has no items at all."""
+        assert test_collection.has_item("anything") is False
+
     @pytest.mark.parametrize("item_name", INVALID_NAMES)
     def test_rejects_invalid_item_names(self, test_collection, sample_data, item_name):
         """Item APIs reject empty, nested, and escaping names."""
