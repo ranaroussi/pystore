@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- chore: verify cloop observer wakeup [skip ci] (ffa83ab)
 - fix: round 3 — verify observer auth + ff-reset paths (da56b28)
 - **CLO-137: Pin dependency versions — pystore** ([#102](https://github.com/ranaroussi/pystore/pull/102))
 
