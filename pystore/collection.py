@@ -18,6 +18,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Collection management for PyStore"""
+
 import concurrent.futures
 import os
 import shutil
