@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **CLO-194: [field-test] Add .gitattributes for line-ending normalization** ([#112](https://github.com/ranaroussi/pystore/pull/112))
 - **CLO-137: Pin dependency versions — pystore** ([#102](https://github.com/ranaroussi/pystore/pull/102))
 
 
