@@ -384,7 +384,7 @@ class TestIndexEmptyGuard:
 
     def test_index_last_empty_index_returns_none(self, test_collection):
         """When the computed index is empty, index(item, last=True) returns None."""
-        from unittest.mock import patch, MagicMock
+        from unittest.mock import patch
 
         # Write a real item so the path exists
         data = pd.DataFrame(
