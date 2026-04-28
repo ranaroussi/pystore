@@ -23,7 +23,7 @@ import os
 import shutil
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Optional, cast
+from typing import Any, Optional, Union, cast
 
 import numpy as np
 import pandas as pd
@@ -37,8 +37,10 @@ from .logger import get_logger
 logger = get_logger(__name__)
 
 
-def read_csv(urlpath, *args, **kwargs):
-    def rename_dask_index(df, name):
+def read_csv(
+    urlpath: Union[str, Path, list[str]], *args: Any, **kwargs: Any
+) -> dd.DataFrame:
+    def rename_dask_index(df: dd.DataFrame, name: str) -> dd.DataFrame:
         df.index.name = name
         return df
 
@@ -66,7 +68,7 @@ def read_csv(urlpath, *args, **kwargs):
     return df
 
 
-def datetime_to_int64(df):
+def datetime_to_int64(df: Union[pd.DataFrame, dd.DataFrame]) -> Union[pd.DataFrame, dd.DataFrame]:
     """Convert datetime index to epoch int (nanoseconds since epoch).
 
     This allows for cross language/platform portability.  The conversion
@@ -84,7 +86,7 @@ def datetime_to_int64(df):
     return df
 
 
-def subdirs(d):
+def subdirs(d: Union[str, Path]) -> list[str]:
     """use this to construct paths for future storage support"""
     return [
         o.parts[-1]
@@ -93,12 +95,12 @@ def subdirs(d):
     ]
 
 
-def path_exists(path):
+def path_exists(path: Union[str, Path]) -> bool:
     """use this to construct paths for future storage support"""
     return Path(path).exists()
 
 
-def read_metadata(path) -> dict[str, Any]:
+def read_metadata(path: Union[str, Path]) -> dict[str, Any]:
     """use this to construct paths for future storage support"""
     dest = make_path(path, "pystore_metadata.json")
     if path_exists(dest):
@@ -108,7 +110,9 @@ def read_metadata(path) -> dict[str, Any]:
         return {}
 
 
-def write_metadata(path, metadata: Optional[dict[str, Any]] = None) -> None:
+def write_metadata(
+    path: Union[str, Path], metadata: Optional[dict[str, Any]] = None
+) -> None:
     """use this to construct paths for future storage support"""
     if metadata is None:
         metadata = {}
@@ -123,7 +127,7 @@ def write_metadata(path, metadata: Optional[dict[str, Any]] = None) -> None:
         json.dump(metadata, f, ensure_ascii=False)
 
 
-def validate_identifier(name, kind="Identifier"):
+def validate_identifier(name: Union[str, os.PathLike], kind: str = "Identifier") -> str:
     """Validate a user-facing name as a single safe path component."""
     if name is None:
         raise ValueError(f"{kind} name must not be empty")
@@ -143,7 +147,7 @@ def validate_identifier(name, kind="Identifier"):
     return value
 
 
-def sanitize_snapshot_name(snapshot):
+def sanitize_snapshot_name(snapshot: Union[str, os.PathLike]) -> str:
     """Sanitize a snapshot name and ensure it remains a valid component."""
     snapshot_str = (
         os.fspath(snapshot) if isinstance(snapshot, os.PathLike) else str(snapshot)
@@ -154,7 +158,7 @@ def sanitize_snapshot_name(snapshot):
     return validate_identifier(snapshot_name, "Snapshot")
 
 
-def make_path(*args):
+def make_path(*args: Union[str, Path]) -> Path:
     """use this to construct paths for future storage support"""
     if not args:
         return Path()
@@ -169,13 +173,13 @@ def make_path(*args):
     return path
 
 
-def get_path(*args):
+def get_path(*args: str) -> Path:
     """use this to construct paths for future storage support"""
     components = [validate_identifier(arg, "Path component") for arg in args]
     return make_path(config.DEFAULT_PATH, *components)
 
 
-def set_path(path=None):
+def set_path(path: Optional[Union[str, Path]] = None) -> Path:
     """Set the base path for PyStore data
 
     Parameters
@@ -206,13 +210,13 @@ def set_path(path=None):
     return path
 
 
-def list_stores():
+def list_stores() -> list[str]:
     if not path_exists(get_path()):
         os.makedirs(get_path())
     return subdirs(get_path())
 
 
-def delete_store(store):
+def delete_store(store: Union[str, os.PathLike]) -> bool:
     store_name = validate_identifier(store, "Store")
     store_path = get_path(store_name)
     if not path_exists(store_path):
@@ -224,7 +228,7 @@ def delete_store(store):
         raise StorageError(f"Failed to delete store '{store_name}': {str(e)}") from e
 
 
-def delete_stores():
+def delete_stores() -> bool:
     store_path = get_path()
     if not path_exists(store_path):
         raise ValueError(f"Store path '{store_path}' does not exist")
@@ -257,12 +261,12 @@ def get_client() -> Optional[Client]:
     return config._CLIENT
 
 
-def set_partition_size(size=None):
+def set_partition_size(size: Optional[float] = None) -> float:
     if size is None:
         size = config.DEFAULT_PARTITION_SIZE * 1
     config.PARTITION_SIZE = size
     return config.PARTITION_SIZE
 
 
-def get_partition_size():
+def get_partition_size() -> float:
     return config.PARTITION_SIZE
