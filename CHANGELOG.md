@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **CLO-209: [VERIFY] §4.6-A blocker: add module docstring to pystore/collection.py** ([#114](https://github.com/ranaroussi/pystore/pull/114))
 - chore: verify cloop observer wakeup [skip ci] (ffa83ab)
 - fix: round 3 — verify observer auth + ff-reset paths (da56b28)
 - **CLO-137: Pin dependency versions — pystore** ([#102](https://github.com/ranaroussi/pystore/pull/102))
